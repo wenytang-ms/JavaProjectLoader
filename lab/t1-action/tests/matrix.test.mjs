@@ -94,3 +94,13 @@ test("CSV-derived configured case set expands to sixty jobs", () => {
   );
   assert.equal(entries.length, 60);
 });
+
+test("Spring Boot declares stable diagnostic probe files", () => {
+  const project = loadProjects().find((entry) => entry.id === "spring-boot");
+  assert.equal(project.diagnosticProbeFiles.length, 4);
+  assert.equal(new Set(project.diagnosticProbeFiles).size, 4);
+  for (const relativeFile of project.diagnosticProbeFiles) {
+    assert.match(relativeFile, /\.java$/);
+    assert.doesNotMatch(relativeFile, /\\/);
+  }
+});

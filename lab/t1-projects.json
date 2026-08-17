@@ -15,6 +15,12 @@
     "commit": "3575c12ae5f26e20a419ef6fb631cc7800a224fe",
     "relativeFile": "core/spring-boot/src/main/java/org/springframework/boot/SpringApplication.java",
     "sourceSymbol": "SpringApplication",
+    "diagnosticProbeFiles": [
+      "smoke-test/spring-boot-smoke-test-grpc-server/src/main/java/smoketest/grpcserver/HelloWorldService.java",
+      "core/spring-boot/src/main/java/org/springframework/boot/ResourceBanner.java",
+      "core/spring-boot/src/main/java/org/springframework/boot/logging/structured/ContextPairs.java",
+      "smoke-test/spring-boot-smoke-test-opentelemetry/src/test/java/smoketest/opentelemetry/package-info.java"
+    ],
     "javaVersion": "25",
     "timeoutSeconds": 1200,
     "t1Eligible": true
