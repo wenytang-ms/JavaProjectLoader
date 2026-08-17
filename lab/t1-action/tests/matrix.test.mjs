@@ -48,7 +48,6 @@ test("provider-aware matrix carries distinct Algorithms and RxJava JDK roles", (
     runtimeJavaSource: "setup-java",
     runtimeJavaVersion: "21",
     runtimeJavaDistribution: "temurin",
-    cache: "gradle",
   });
 
   const algorithmsIntellij = entries.find(

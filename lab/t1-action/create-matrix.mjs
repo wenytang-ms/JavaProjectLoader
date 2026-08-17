@@ -103,7 +103,6 @@ function matrixEnvironment(project, provider) {
         ? String(project.javaVersion ?? "21")
         : "",
       runtimeJavaDistribution: provider === "jdtls" ? "temurin" : "",
-      cache: "maven",
     };
   }
 
@@ -114,7 +113,6 @@ function matrixEnvironment(project, provider) {
     runtimeJavaSource: providerSetup.runtimeJava.source,
     runtimeJavaVersion: providerSetup.runtimeJava.version ?? "",
     runtimeJavaDistribution: providerSetup.runtimeJava.distribution ?? "",
-    cache: project.projectSetup.buildTool,
   };
 }
 

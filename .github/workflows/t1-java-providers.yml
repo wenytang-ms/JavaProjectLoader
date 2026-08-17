@@ -82,7 +82,6 @@ jobs:
         with:
           distribution: ${{ matrix.environment.projectJavaDistribution }}
           java-version: ${{ matrix.environment.projectJavaVersion }}
-          cache: ${{ matrix.environment.cache }}
 
       - name: Record project JDK home
         shell: pwsh
