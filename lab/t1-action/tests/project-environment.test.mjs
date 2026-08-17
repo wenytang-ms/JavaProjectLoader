@@ -45,6 +45,20 @@ test("MPAndroidChart declares its pinned dual-build Android environment", () => 
   );
 });
 
+test("workflow provisions a dedicated Android SDK tooling JDK", () => {
+  const workflow = fs.readFileSync(
+    path.resolve(
+      import.meta.dirname,
+      "../../../.github/workflows/t1-java-providers.yml",
+    ),
+    "utf8",
+  );
+  assert.match(workflow, /timeout-minutes: 75/);
+  assert.match(workflow, /name: Set up Android SDK tooling JDK/);
+  assert.match(workflow, /java-version: 17/);
+  assert.match(workflow, /T1_ANDROID_SDK_JAVA_HOME=\$env:JAVA_HOME/);
+});
+
 test("discovery verifies pinned requirements and JDT LS prefers Gradle", () => {
   const project = loadProjects().find((entry) => entry.id === "mpandroidchart");
   const fixture = fs.mkdtempSync(

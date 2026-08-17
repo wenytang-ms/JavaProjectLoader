@@ -478,11 +478,14 @@ function findSdkManager(sdkRoot) {
   return sdkManager;
 }
 
-function runSdkManager(sdkManager, sdkRoot, packages) {
+function runSdkManager(sdkManager, sdkRoot, packages, javaHome) {
   const args = [`--sdk_root=${sdkRoot}`, ...packages];
   const result = spawnSync(sdkManager, args, {
     encoding: "utf8",
-    env: process.env,
+    env: {
+      ...process.env,
+      JAVA_HOME: javaHome,
+    },
     maxBuffer: 50 * 1024 * 1024,
     shell: process.platform === "win32",
   });
@@ -500,6 +503,11 @@ function runSdkManager(sdkManager, sdkRoot, packages) {
 function provisionAndroidSdk(androidSdk, environment) {
   const sdkRoot = environment.ANDROID_SDK_ROOT || environment.ANDROID_HOME;
   requireString(sdkRoot, "ANDROID_SDK_ROOT or ANDROID_HOME");
+  const toolJava = inspectJavaHome(
+    environment.T1_ANDROID_SDK_JAVA_HOME,
+    "17",
+    "T1_ANDROID_SDK_JAVA_HOME",
+  );
   const sdkManager = findSdkManager(sdkRoot);
   const packages = [
     `platforms;${androidSdk.platform}`,
@@ -517,7 +525,7 @@ function provisionAndroidSdk(androidSdk, environment) {
     androidSdk.effectiveBuildToolsVersion,
   );
   if (!fs.existsSync(platformJar) || !fs.existsSync(buildToolsPath)) {
-    runSdkManager(sdkManager, sdkRoot, packages);
+    runSdkManager(sdkManager, sdkRoot, packages, toolJava.home);
   }
   if (!fs.existsSync(platformJar) || !fs.existsSync(buildToolsPath)) {
     throw new Error(`Android SDK packages were not installed: ${packages.join(", ")}`);
@@ -528,6 +536,7 @@ function provisionAndroidSdk(androidSdk, environment) {
     packages,
     platformJar,
     buildToolsPath,
+    toolJava,
   };
 }
 
