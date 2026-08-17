@@ -258,10 +258,10 @@ async function completeIntellijOnboarding(driver, outputDirectory) {
   return result;
 }
 
-async function waitForT1Result(driver, resultPath, timeoutMs, outputDirectory) {
+async function waitForT1Result(driver, resultPath, deadline, outputDirectory) {
   const startedAt = Date.now();
   let screenshotIndex = 0;
-  while (!fs.existsSync(resultPath) && Date.now() - startedAt < timeoutMs + 120_000) {
+  while (!fs.existsSync(resultPath) && Date.now() < deadline) {
     await wait(1_000);
     const elapsedSeconds = Math.round((Date.now() - startedAt) / 1_000);
     if (elapsedSeconds >= (screenshotIndex + 1) * 60) {
@@ -274,7 +274,7 @@ async function waitForT1Result(driver, resultPath, timeoutMs, outputDirectory) {
     }
   }
   if (!fs.existsSync(resultPath)) {
-    throw new Error(`T1 result was not written within ${timeoutMs + 120_000}ms`);
+    throw new Error("T1 result was not written before the load deadline");
   }
   return JSON.parse(fs.readFileSync(resultPath, "utf8"));
 }
@@ -431,20 +431,13 @@ async function waitForProviderIdle(
   return result;
 }
 
-async function waitForProviderLoaded(
+async function waitForProviderIdleAfterLog(
   driver,
-  profile,
   provider,
   deadline,
   outputDirectory,
+  log,
 ) {
-  const remaining = () => Math.max(0, deadline - Date.now());
-  const log = await waitForProviderLogMilestone(
-    profile,
-    provider,
-    remaining(),
-    outputDirectory,
-  );
   if (!log.loaded) {
     return {
       loaded: false,
@@ -456,7 +449,7 @@ async function waitForProviderLoaded(
   const ui = await waitForProviderIdle(
     driver,
     provider,
-    remaining(),
+    Math.max(0, deadline - Date.now()),
     outputDirectory,
   );
   return {
@@ -932,22 +925,28 @@ async function main() {
     if (provider === "intellij") {
       onboarding = await completeIntellijOnboarding(driver, outputDirectory);
     }
-    const sourceResult = await waitForT1Result(
-      driver,
-      resultPath,
-      project.timeoutSeconds * 1_000,
-      outputDirectory,
-    );
     const deadline =
       Date.parse(processStartedAt.toISOString()) +
       project.timeoutSeconds * 1_000 +
       120_000;
-    const providerLoad = await waitForProviderLoaded(
-      driver,
+    const providerLog = await waitForProviderLogMilestone(
       profile,
+      provider,
+      Math.max(0, deadline - Date.now()),
+      outputDirectory,
+    );
+    const sourceResult = await waitForT1Result(
+      driver,
+      resultPath,
+      deadline,
+      outputDirectory,
+    );
+    const providerLoad = await waitForProviderIdleAfterLog(
+      driver,
       provider,
       deadline,
       outputDirectory,
+      providerLog,
     );
     const diagnosticFiles = [...new Set([
       runtimeRelativeFile,

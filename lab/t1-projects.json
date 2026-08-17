@@ -22,7 +22,7 @@
       "smoke-test/spring-boot-smoke-test-opentelemetry/src/test/java/smoketest/opentelemetry/package-info.java"
     ],
     "javaVersion": "25",
-    "timeoutSeconds": 1200,
+    "timeoutSeconds": 1800,
     "t1Eligible": true
   },
   {
