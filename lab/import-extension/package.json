@@ -1,0 +1,13 @@
+{
+  "name": "java-provider-t1-oracle",
+  "displayName": "Java Provider T1 Oracle",
+  "version": "0.0.1",
+  "publisher": "local",
+  "engines": {
+    "vscode": "^1.105.0"
+  },
+  "main": "./extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ]
+}

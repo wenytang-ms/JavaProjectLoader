@@ -1,0 +1,103 @@
+[
+  {
+    "id": "java-design-patterns",
+    "repository": "https://github.com/iluwatar/java-design-patterns.git",
+    "commit": "b55fc2bcb5f8e1c4b884bca0a38d402d19fe467c",
+    "relativeFile": "abstract-document/src/main/java/com/iluwatar/abstractdocument/AbstractDocument.java",
+    "sourceSymbol": "AbstractDocument",
+    "javaVersion": "21",
+    "timeoutSeconds": 900,
+    "t1Eligible": true
+  },
+  {
+    "id": "spring-boot",
+    "repository": "https://github.com/spring-projects/spring-boot.git",
+    "commit": "3575c12ae5f26e20a419ef6fb631cc7800a224fe",
+    "relativeFile": "core/spring-boot/src/main/java/org/springframework/boot/SpringApplication.java",
+    "sourceSymbol": "SpringApplication",
+    "javaVersion": "25",
+    "timeoutSeconds": 1200,
+    "t1Eligible": true
+  },
+  {
+    "id": "elasticsearch",
+    "repository": "https://github.com/elastic/elasticsearch.git",
+    "commit": "9a6534ff7da2b7865dd56b267a8ec371901117b4",
+    "relativeFile": "server/src/main/java/org/elasticsearch/action/ActionListener.java",
+    "sourceSymbol": "ActionListener",
+    "javaVersion": "21",
+    "timeoutSeconds": 1200,
+    "t1Eligible": true
+  },
+  {
+    "id": "mall",
+    "repository": "https://github.com/macrozheng/mall.git",
+    "commit": "0504e86b1f1b6f1b8aa6a734d37a90fb67346be7",
+    "relativeFile": "mall-admin/src/main/java/com/macro/mall/MallAdminApplication.java",
+    "sourceSymbol": "MallAdminApplication",
+    "javaVersion": "17",
+    "timeoutSeconds": 900,
+    "t1Eligible": true
+  },
+  {
+    "id": "interviews",
+    "repository": "https://github.com/kdn251/interviews.git",
+    "commit": "03fdcb2703ce72dc0606748733d0c13f09d41d21",
+    "relativeFile": "company/adobe/AddDigits.java",
+    "sourceSymbol": "AddDigits",
+    "syntheticMavenTargetFile": "src/main/java/AddDigits.java",
+    "javaVersion": "21",
+    "timeoutSeconds": 300,
+    "t1Eligible": true
+  },
+  {
+    "id": "the-algorithms-java",
+    "repository": "https://github.com/TheAlgorithms/Java.git",
+    "commit": "fdfb9a395b310167a66bd29e311e36e0e3e9b964",
+    "relativeFile": "src/main/java/com/thealgorithms/audiofilters/EMAFilter.java",
+    "sourceSymbol": "EMAFilter",
+    "javaVersion": "21",
+    "timeoutSeconds": 600,
+    "t1Eligible": true
+  },
+  {
+    "id": "rxjava",
+    "repository": "https://github.com/ReactiveX/RxJava.git",
+    "commit": "a8ab5356143f37a8f1dd6d76c79191bec5fa343b",
+    "relativeFile": "src/main/java/io/reactivex/rxjava4/core/Flowable.java",
+    "sourceSymbol": "Flowable",
+    "javaVersion": "26",
+    "timeoutSeconds": 900,
+    "t1Eligible": true
+  },
+  {
+    "id": "guava",
+    "repository": "https://github.com/google/guava.git",
+    "commit": "94f39958baf7ad51ddf9c70e406ed6b188194daa",
+    "relativeFile": "guava/src/com/google/common/base/Strings.java",
+    "sourceSymbol": "Strings",
+    "javaVersion": "26",
+    "timeoutSeconds": 900,
+    "t1Eligible": true
+  },
+  {
+    "id": "mpandroidchart",
+    "repository": "https://github.com/PhilJay/MPAndroidChart.git",
+    "commit": "9c7275a0596a7ac0e50ca566e680f7f9d73607af",
+    "relativeFile": "MPChartLib/src/main/java/com/github/mikephil/charting/charts/BarChart.java",
+    "sourceSymbol": "BarChart",
+    "javaVersion": "21",
+    "timeoutSeconds": 900,
+    "t1Eligible": true
+  },
+  {
+    "id": "spark",
+    "repository": "https://github.com/apache/spark.git",
+    "commit": "311a4511ec5683f9af07515be78d0cfa1095a9af",
+    "relativeFile": "common/config/src/main/java/org/apache/spark/config/ConfigRegistry.java",
+    "sourceSymbol": "ConfigRegistry",
+    "javaVersion": "17",
+    "timeoutSeconds": 1200,
+    "t1Eligible": true
+  }
+]

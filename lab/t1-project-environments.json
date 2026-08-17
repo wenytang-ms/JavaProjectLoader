@@ -1,0 +1,642 @@
+{
+  "schemaVersion": 1,
+  "selection": {
+    "targetCaseCount": 10,
+    "policy": "Use the nine non-dismissed source projects shared by the original repository inventory and the CSV baseline, plus the existing MPAndroidChart Android boundary case."
+  },
+  "projects": [
+    {
+      "id": "java-design-patterns",
+      "repository": "https://github.com/iluwatar/java-design-patterns.git",
+      "commit": "b55fc2bcb5f8e1c4b884bca0a38d402d19fe467c",
+      "csvBaseline": {
+        "projectType": "Maven",
+        "dismissed": false,
+        "projectStatus": "success",
+        "languageServerStatus": "success",
+        "intellijResult": null
+      },
+      "buildTool": "maven",
+      "buildToolVersion": "3.9.6",
+      "buildToolVersionSource": ".mvn/wrapper/maven-wrapper.properties",
+      "selectionReason": "The pinned repository is a Maven multi-module build and the target source belongs to the abstract-document module.",
+      "buildDescriptors": {
+        "maven": [
+          "pom.xml",
+          "abstract-document/pom.xml"
+        ],
+        "gradle": []
+      },
+      "maven": {
+        "downloadUrl": "https://archive.apache.org/dist/maven/maven-3/3.9.6/binaries/apache-maven-3.9.6-bin.zip",
+        "sha512": "0eb0432004a91ebf399314ad33e5aaffec3d3b29279f2f143b2f43ade26f4db7bd1c0f08e436e9445ac6dc4a564a2945d13072a160ae54a930e90581284d6461"
+      },
+      "providers": {
+        "jdtls": {
+          "runtimeJava": {
+            "source": "setup-java",
+            "distribution": "temurin",
+            "version": "21"
+          },
+          "projectJava": {
+            "distribution": "temurin",
+            "version": "21"
+          },
+          "vscodeSettings": {
+            "java.import.maven.enabled": true,
+            "java.import.gradle.enabled": false
+          }
+        },
+        "intellij": {
+          "runtimeJava": {
+            "source": "bundled"
+          },
+          "projectJava": {
+            "distribution": "temurin",
+            "version": "21"
+          },
+          "vscodeSettings": {}
+        }
+      },
+      "evidenceFiles": [
+        "README.md",
+        "pom.xml",
+        ".mvn/wrapper/maven-wrapper.properties",
+        "abstract-document/pom.xml",
+        ".github/workflows/maven-ci.yml"
+      ]
+    },
+    {
+      "id": "spring-boot",
+      "repository": "https://github.com/spring-projects/spring-boot.git",
+      "commit": "3575c12ae5f26e20a419ef6fb631cc7800a224fe",
+      "csvBaseline": {
+        "projectType": "Gradle",
+        "dismissed": false,
+        "projectStatus": "error",
+        "languageServerStatus": "success",
+        "intellijResult": "error"
+      },
+      "buildTool": "gradle",
+      "buildToolVersion": "9.7.0",
+      "buildToolVersionSource": "gradle/wrapper/gradle-wrapper.properties",
+      "selectionReason": "The pinned repository uses its Gradle wrapper and requires JDK 25 for the root multi-project build.",
+      "gradleWrapper": {
+        "path": "gradle/wrapper/gradle-wrapper.properties",
+        "enabled": true
+      },
+      "buildDescriptors": {
+        "maven": [],
+        "gradle": [
+          "build.gradle",
+          "settings.gradle"
+        ]
+      },
+      "providers": {
+        "jdtls": {
+          "runtimeJava": {
+            "source": "setup-java",
+            "distribution": "temurin",
+            "version": "21"
+          },
+          "projectJava": {
+            "distribution": "liberica",
+            "version": "25"
+          },
+          "vscodeSettings": {
+            "java.import.gradle.enabled": true,
+            "java.import.maven.enabled": false,
+            "java.import.gradle.wrapper.enabled": true
+          }
+        },
+        "intellij": {
+          "runtimeJava": {
+            "source": "bundled"
+          },
+          "projectJava": {
+            "distribution": "liberica",
+            "version": "25"
+          },
+          "vscodeSettings": {}
+        }
+      },
+      "evidenceFiles": [
+        "README.adoc",
+        ".sdkmanrc",
+        "build.gradle",
+        "settings.gradle",
+        "gradle/wrapper/gradle-wrapper.properties",
+        ".github/workflows/ci.yml"
+      ]
+    },
+    {
+      "id": "elasticsearch",
+      "repository": "https://github.com/elastic/elasticsearch.git",
+      "commit": "9a6534ff7da2b7865dd56b267a8ec371901117b4",
+      "csvBaseline": {
+        "projectType": "Gradle",
+        "dismissed": false,
+        "requirement": "java17",
+        "projectStatus": "error",
+        "languageServerStatus": "success",
+        "intellijResult": "success",
+        "requirementReconciliation": "The pinned build.gradle now requires the Adoptium Java 21 toolchain."
+      },
+      "buildTool": "gradle",
+      "buildToolVersion": "9.6.1",
+      "buildToolVersionSource": "gradle/wrapper/gradle-wrapper.properties",
+      "selectionReason": "The pinned repository is a Gradle multi-project build whose root toolchain declaration requires Adoptium Java 21.",
+      "gradleWrapper": {
+        "path": "gradle/wrapper/gradle-wrapper.properties",
+        "enabled": true
+      },
+      "buildDescriptors": {
+        "maven": [],
+        "gradle": [
+          "build.gradle",
+          "settings.gradle"
+        ]
+      },
+      "providers": {
+        "jdtls": {
+          "runtimeJava": {
+            "source": "setup-java",
+            "distribution": "temurin",
+            "version": "21"
+          },
+          "projectJava": {
+            "distribution": "temurin",
+            "version": "21"
+          },
+          "vscodeSettings": {
+            "java.import.gradle.enabled": true,
+            "java.import.maven.enabled": false,
+            "java.import.gradle.wrapper.enabled": true
+          }
+        },
+        "intellij": {
+          "runtimeJava": {
+            "source": "bundled"
+          },
+          "projectJava": {
+            "distribution": "temurin",
+            "version": "21"
+          },
+          "vscodeSettings": {}
+        }
+      },
+      "evidenceFiles": [
+        "BUILDING.md",
+        "build.gradle",
+        "settings.gradle",
+        "gradle/wrapper/gradle-wrapper.properties",
+        ".buildkite/README.md"
+      ]
+    },
+    {
+      "id": "mall",
+      "repository": "https://github.com/macrozheng/mall.git",
+      "commit": "0504e86b1f1b6f1b8aa6a734d37a90fb67346be7",
+      "csvBaseline": {
+        "projectType": "Maven",
+        "dismissed": false,
+        "projectStatus": "success",
+        "languageServerStatus": "success",
+        "intellijResult": null
+      },
+      "buildTool": "maven",
+      "buildToolVersion": "3.9.11",
+      "buildToolVersionSource": "The pinned repository has no Maven wrapper; the T1 harness pins Maven 3.9.11.",
+      "selectionReason": "The pinned repository is a standard Maven reactor and the target application is in the mall-admin module.",
+      "buildDescriptors": {
+        "maven": [
+          "pom.xml",
+          "mall-admin/pom.xml"
+        ],
+        "gradle": []
+      },
+      "maven": {
+        "downloadUrl": "https://archive.apache.org/dist/maven/maven-3/3.9.11/binaries/apache-maven-3.9.11-bin.zip",
+        "sha512": "03e2d65d4483a3396980629f260e25cac0d8b6f7f2791e4dc20bc83f9514db8d0f05b0479e699a5f34679250c49c8e52e961262ded468a20de0be254d8207076"
+      },
+      "providers": {
+        "jdtls": {
+          "runtimeJava": {
+            "source": "setup-java",
+            "distribution": "temurin",
+            "version": "21"
+          },
+          "projectJava": {
+            "distribution": "temurin",
+            "version": "17"
+          },
+          "vscodeSettings": {
+            "java.import.maven.enabled": true,
+            "java.import.gradle.enabled": false
+          }
+        },
+        "intellij": {
+          "runtimeJava": {
+            "source": "bundled"
+          },
+          "projectJava": {
+            "distribution": "temurin",
+            "version": "17"
+          },
+          "vscodeSettings": {}
+        }
+      },
+      "evidenceFiles": [
+        "README.md",
+        "pom.xml",
+        "mall-admin/pom.xml"
+      ]
+    },
+    {
+      "id": "interviews",
+      "repository": "https://github.com/kdn251/interviews.git",
+      "commit": "03fdcb2703ce72dc0606748733d0c13f09d41d21",
+      "csvBaseline": {
+        "projectType": "unmanaged folder",
+        "dismissed": false,
+        "projectStatus": "error",
+        "languageServerStatus": "success",
+        "intellijResult": "error"
+      },
+      "buildTool": "maven",
+      "buildToolVersion": "3.9.11",
+      "buildToolVersionSource": "The T1 harness generates pom.xml and pins Maven 3.9.11 for this unmanaged source repository.",
+      "selectionReason": "The repository has no build descriptor, so the configured source is copied into an isolated generated Maven workspace.",
+      "buildDescriptorRoot": "workspace",
+      "syntheticWorkspace": {
+        "sourcePath": "company/adobe/AddDigits.java",
+        "targetPath": "src/main/java/AddDigits.java",
+        "generatedBuildDescriptor": "pom.xml"
+      },
+      "buildDescriptors": {
+        "maven": [
+          "pom.xml"
+        ],
+        "gradle": []
+      },
+      "maven": {
+        "downloadUrl": "https://archive.apache.org/dist/maven/maven-3/3.9.11/binaries/apache-maven-3.9.11-bin.zip",
+        "sha512": "03e2d65d4483a3396980629f260e25cac0d8b6f7f2791e4dc20bc83f9514db8d0f05b0479e699a5f34679250c49c8e52e961262ded468a20de0be254d8207076"
+      },
+      "providers": {
+        "jdtls": {
+          "runtimeJava": {
+            "source": "setup-java",
+            "distribution": "temurin",
+            "version": "21"
+          },
+          "projectJava": {
+            "distribution": "temurin",
+            "version": "21"
+          },
+          "vscodeSettings": {
+            "java.import.maven.enabled": true,
+            "java.import.gradle.enabled": false
+          }
+        },
+        "intellij": {
+          "runtimeJava": {
+            "source": "bundled"
+          },
+          "projectJava": {
+            "distribution": "temurin",
+            "version": "21"
+          },
+          "vscodeSettings": {}
+        }
+      },
+      "evidenceFiles": [
+        "README.md",
+        "company/adobe/AddDigits.java"
+      ]
+    },
+    {
+      "id": "the-algorithms-java",
+      "repository": "https://github.com/TheAlgorithms/Java.git",
+      "commit": "fdfb9a395b310167a66bd29e311e36e0e3e9b964",
+      "csvBaseline": {
+        "projectType": "Maven",
+        "dismissed": false,
+        "projectStatus": "success",
+        "languageServerStatus": "success",
+        "intellijResult": null
+      },
+      "buildTool": "maven",
+      "buildToolVersion": "3.9.11",
+      "buildToolVersionSource": "The upstream CI invokes an unversioned mvn executable; the T1 harness pins Maven 3.9.11 for reproducible runners.",
+      "selectionReason": "The pinned repository contains pom.xml and no Gradle build descriptor.",
+      "buildDescriptors": {
+        "maven": [
+          "pom.xml"
+        ],
+        "gradle": []
+      },
+      "maven": {
+        "downloadUrl": "https://archive.apache.org/dist/maven/maven-3/3.9.11/binaries/apache-maven-3.9.11-bin.zip",
+        "sha512": "03e2d65d4483a3396980629f260e25cac0d8b6f7f2791e4dc20bc83f9514db8d0f05b0479e699a5f34679250c49c8e52e961262ded468a20de0be254d8207076"
+      },
+      "providers": {
+        "jdtls": {
+          "runtimeJava": {
+            "source": "setup-java",
+            "distribution": "temurin",
+            "version": "21"
+          },
+          "projectJava": {
+            "distribution": "temurin",
+            "version": "21"
+          },
+          "vscodeSettings": {
+            "java.import.maven.enabled": true,
+            "java.import.gradle.enabled": false
+          }
+        },
+        "intellij": {
+          "runtimeJava": {
+            "source": "bundled"
+          },
+          "projectJava": {
+            "distribution": "temurin",
+            "version": "21"
+          },
+          "vscodeSettings": {}
+        }
+      },
+      "evidenceFiles": [
+        "README.md",
+        "pom.xml",
+        ".github/workflows/build.yml"
+      ]
+    },
+    {
+      "id": "rxjava",
+      "repository": "https://github.com/ReactiveX/RxJava.git",
+      "commit": "a8ab5356143f37a8f1dd6d76c79191bec5fa343b",
+      "csvBaseline": {
+        "projectType": "Gradle",
+        "dismissed": false,
+        "projectStatus": "success",
+        "languageServerStatus": "success",
+        "intellijResult": null
+      },
+      "buildTool": "gradle",
+      "buildToolVersion": "9.7.0",
+      "buildToolVersionSource": "gradle/wrapper/gradle-wrapper.properties",
+      "selectionReason": "The pinned repository is a standard Gradle Java library and its CI uses the checked-in wrapper.",
+      "gradleWrapper": {
+        "path": "gradle/wrapper/gradle-wrapper.properties",
+        "enabled": true
+      },
+      "buildDescriptors": {
+        "maven": [],
+        "gradle": [
+          "build.gradle",
+          "settings.gradle"
+        ]
+      },
+      "providers": {
+        "jdtls": {
+          "runtimeJava": {
+            "source": "setup-java",
+            "distribution": "temurin",
+            "version": "21"
+          },
+          "projectJava": {
+            "distribution": "zulu",
+            "version": "26"
+          },
+          "vscodeSettings": {
+            "java.import.gradle.enabled": true,
+            "java.import.maven.enabled": false,
+            "java.import.gradle.wrapper.enabled": true
+          }
+        },
+        "intellij": {
+          "runtimeJava": {
+            "source": "bundled"
+          },
+          "projectJava": {
+            "distribution": "zulu",
+            "version": "26"
+          },
+          "vscodeSettings": {}
+        }
+      },
+      "evidenceFiles": [
+        "README.md",
+        "build.gradle",
+        "settings.gradle",
+        "gradle.properties",
+        "gradle/wrapper/gradle-wrapper.properties",
+        ".github/workflows/gradle_pr.yml"
+      ]
+    },
+    {
+      "id": "guava",
+      "repository": "https://github.com/google/guava.git",
+      "commit": "94f39958baf7ad51ddf9c70e406ed6b188194daa",
+      "csvBaseline": {
+        "projectType": "Maven",
+        "dismissed": false,
+        "projectStatus": "error",
+        "languageServerStatus": "success",
+        "intellijResult": "error"
+      },
+      "buildTool": "maven",
+      "buildToolVersion": "3.9.12",
+      "buildToolVersionSource": ".mvn/wrapper/maven-wrapper.properties",
+      "selectionReason": "The pinned repository is a Maven multi-module build with a non-standard guava/src source root declared by the guava module.",
+      "buildDescriptors": {
+        "maven": [
+          "pom.xml",
+          "guava/pom.xml"
+        ],
+        "gradle": []
+      },
+      "maven": {
+        "downloadUrl": "https://archive.apache.org/dist/maven/maven-3/3.9.12/binaries/apache-maven-3.9.12-bin.zip",
+        "sha512": "0ef0d074761a55e7b982fd7f2cd6ea2da028289c73156ebd488c0513efbff8a64ac5bc0c11c3b8bbced930ce15238ecef344b0e065ae54f7cdca8c86cf39e736"
+      },
+      "providers": {
+        "jdtls": {
+          "runtimeJava": {
+            "source": "setup-java",
+            "distribution": "temurin",
+            "version": "21"
+          },
+          "projectJava": {
+            "distribution": "temurin",
+            "version": "26"
+          },
+          "vscodeSettings": {
+            "java.import.maven.enabled": true,
+            "java.import.gradle.enabled": false
+          }
+        },
+        "intellij": {
+          "runtimeJava": {
+            "source": "bundled"
+          },
+          "projectJava": {
+            "distribution": "temurin",
+            "version": "26"
+          },
+          "vscodeSettings": {}
+        }
+      },
+      "evidenceFiles": [
+        "README.md",
+        "pom.xml",
+        ".mvn/wrapper/maven-wrapper.properties",
+        ".github/workflows/ci.yml",
+        "guava/pom.xml"
+      ]
+    },
+    {
+      "id": "mpandroidchart",
+      "repository": "https://github.com/PhilJay/MPAndroidChart.git",
+      "commit": "9c7275a0596a7ac0e50ca566e680f7f9d73607af",
+      "csvBaseline": {
+        "projectType": "Maven/Gradle",
+        "dismissed": true,
+        "projectStatus": "error",
+        "languageServerStatus": "success",
+        "intellijResult": "success",
+        "unsupportedAndroid": true,
+        "selectionException": "Retained as the existing experimental Android importer boundary case."
+      },
+      "buildTool": "gradle",
+      "buildToolVersion": "7.2",
+      "buildToolVersionSource": "gradle/wrapper/gradle-wrapper.properties",
+      "selectionReason": "The repository root is a Gradle multi-project build. MPChartLib also contains a legacy pom.xml, so JDT LS must select Gradle explicitly instead of prompting or importing Maven.",
+      "gradleWrapper": {
+        "path": "gradle/wrapper/gradle-wrapper.properties",
+        "enabled": true
+      },
+      "buildDescriptors": {
+        "gradle": [
+          "build.gradle",
+          "settings.gradle",
+          "MPChartLib/build.gradle",
+          "MPChartExample/build.gradle"
+        ],
+        "maven": [
+          "MPChartLib/pom.xml"
+        ]
+      },
+      "androidSdk": {
+        "platform": "android-28",
+        "declaredBuildToolsVersion": "28.0.3",
+        "effectiveBuildToolsVersion": "30.0.2",
+        "effectiveBuildToolsReason": "Android Gradle Plugin 7.0.4 ignores Build Tools versions below its supported minimum of 30.0.2.",
+        "minSdk": 14,
+        "targetSdk": 28,
+        "requirementsFile": "MPChartLib/build.gradle",
+        "androidGradlePluginVersion": "7.0.4",
+        "androidGradlePluginFile": "build.gradle"
+      },
+      "providers": {
+        "jdtls": {
+          "runtimeJava": {
+            "source": "setup-java",
+            "distribution": "temurin",
+            "version": "21"
+          },
+          "projectJava": {
+            "distribution": "temurin",
+            "version": "11"
+          },
+          "vscodeSettings": {
+            "java.jdt.ls.androidSupport.enabled": "on",
+            "java.import.gradle.enabled": true,
+            "java.import.maven.enabled": false,
+            "java.import.gradle.wrapper.enabled": true
+          }
+        },
+        "intellij": {
+          "runtimeJava": {
+            "source": "bundled"
+          },
+          "projectJava": {
+            "distribution": "temurin",
+            "version": "11"
+          },
+          "vscodeSettings": {}
+        }
+      },
+      "evidenceFiles": [
+        "README.md",
+        "build.gradle",
+        "settings.gradle",
+        "gradle/wrapper/gradle-wrapper.properties",
+        "MPChartLib/build.gradle",
+        "MPChartLib/pom.xml"
+      ]
+    },
+    {
+      "id": "spark",
+      "repository": "https://github.com/apache/spark.git",
+      "commit": "311a4511ec5683f9af07515be78d0cfa1095a9af",
+      "csvBaseline": {
+        "projectType": "Maven",
+        "dismissed": false,
+        "projectStatus": "error",
+        "languageServerStatus": "success",
+        "intellijResult": "success"
+      },
+      "buildTool": "maven",
+      "buildToolVersion": "3.9.11",
+      "buildToolVersionSource": "The pinned repository has Maven configuration but no Maven wrapper; the T1 harness pins Maven 3.9.11.",
+      "selectionReason": "The pinned Spark revision uses a root Maven reactor and requires JDK 17 for its baseline build.",
+      "buildDescriptors": {
+        "maven": [
+          "pom.xml"
+        ],
+        "gradle": []
+      },
+      "maven": {
+        "downloadUrl": "https://archive.apache.org/dist/maven/maven-3/3.9.11/binaries/apache-maven-3.9.11-bin.zip",
+        "sha512": "03e2d65d4483a3396980629f260e25cac0d8b6f7f2791e4dc20bc83f9514db8d0f05b0479e699a5f34679250c49c8e52e961262ded468a20de0be254d8207076"
+      },
+      "providers": {
+        "jdtls": {
+          "runtimeJava": {
+            "source": "setup-java",
+            "distribution": "temurin",
+            "version": "21"
+          },
+          "projectJava": {
+            "distribution": "temurin",
+            "version": "17"
+          },
+          "vscodeSettings": {
+            "java.import.maven.enabled": true,
+            "java.import.gradle.enabled": false
+          }
+        },
+        "intellij": {
+          "runtimeJava": {
+            "source": "bundled"
+          },
+          "projectJava": {
+            "distribution": "temurin",
+            "version": "17"
+          },
+          "vscodeSettings": {}
+        }
+      },
+      "evidenceFiles": [
+        "README.md",
+        "pom.xml",
+        ".github/workflows/build_and_test.yml",
+        ".mvn/jvm.config",
+        ".mvn/maven.config"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "name": "java-provider-t1-action",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "check": "node create-matrix.mjs --validate",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "@vscjava/vscode-autotest": "0.7.24",
+    "@vscode/test-electron": "3.1.0"
+  }
+}
