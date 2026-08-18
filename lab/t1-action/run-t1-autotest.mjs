@@ -197,21 +197,42 @@ async function captureLicensePage(driver, outputDirectory, name) {
   writeJson(path.join(outputDirectory, `${name}.json`), evidence);
 }
 
-async function clickWebviewElement(locator) {
-  await locator.waitFor({ state: "attached", timeout: 15_000 });
-  await locator.evaluate((element) => element.click());
+export function isTransientWebviewError(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  return /Frame was detached|Execution context was destroyed|Target page.*closed|locator\.(?:waitFor|evaluate): Timeout/i
+    .test(message);
 }
 
-async function clickUntilTransition(frame, sourceSelector, targetSelector) {
+export async function clickWebviewElement(locator) {
+  try {
+    await locator.waitFor({ state: "attached", timeout: 15_000 });
+    await locator.evaluate((element) => element.click());
+    return true;
+  } catch (error) {
+    if (isTransientWebviewError(error)) {
+      return false;
+    }
+    throw error;
+  }
+}
+
+async function clickUntilTransition(
+  driver,
+  initialFrame,
+  sourceSelector,
+  targetSelector,
+) {
   const startedAt = Date.now();
+  let frame = initialFrame;
   while (Date.now() - startedAt < 60_000) {
     if (await frame.locator(targetSelector).isVisible().catch(() => false)) {
-      return;
+      return frame;
     }
     const source = frame.locator(sourceSelector);
     if (await source.isVisible().catch(() => false)) {
       await clickWebviewElement(source);
     }
+    frame = await findLicenseFrame(driver, 5_000).catch(() => frame);
     await wait(1_000);
   }
   throw new Error(
@@ -240,14 +261,25 @@ async function completeIntellijOnboarding(driver, outputDirectory) {
       throw error;
     }
   }
-  const middleEast = frame.locator("label.region-row", { hasText: "Middle East" });
-  await clickWebviewElement(middleEast);
+  let middleEast = frame.locator("label.region-row", { hasText: "Middle East" });
+  if (!(await clickWebviewElement(middleEast))) {
+    frame = await findLicenseFrame(driver, 15_000);
+    middleEast = frame.locator("label.region-row", { hasText: "Middle East" });
+    if (!(await clickWebviewElement(middleEast))) {
+      throw new Error("Middle East region could not be selected");
+    }
+  }
   await wait(500);
   if (!(await middleEast.locator('input[name="region"]').isChecked())) {
     throw new Error("Middle East region was not selected");
   }
   await captureLicensePage(driver, outputDirectory, "02-region-middle-east");
-  await clickUntilTransition(frame, ".region-next", ".eula-wizard");
+  frame = await clickUntilTransition(
+    driver,
+    frame,
+    ".region-next",
+    ".eula-wizard",
+  );
   const eulaText = (await frame.locator(".eula-wizard").innerText())
     .replace(/\r\n/g, "\n")
     .trim();
@@ -265,7 +297,8 @@ async function completeIntellijOnboarding(driver, outputDirectory) {
     );
   }
   await captureLicensePage(driver, outputDirectory, "03-approved-eula");
-  await clickUntilTransition(
+  frame = await clickUntilTransition(
+    driver,
     frame,
     ".eula-accept",
     'button.data-sharing-action[value="none"]',
@@ -280,7 +313,9 @@ async function completeIntellijOnboarding(driver, outputDirectory) {
     await noSharing.isVisible().catch(() => false) &&
     Date.now() - dataSharingStartedAt < 30_000
   ) {
-    await clickWebviewElement(noSharing);
+    if (!(await clickWebviewElement(noSharing))) {
+      break;
+    }
     await wait(1_000);
   }
   if (await noSharing.isVisible().catch(() => false)) {
@@ -1271,43 +1306,48 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  if (activeOutputDirectory) {
-    if (!fs.existsSync(path.join(activeOutputDirectory, "runner-error.json"))) {
-      writeJson(path.join(activeOutputDirectory, "runner-error.json"), {
-        status: "runner-error",
-        error: error instanceof Error ? error.stack : String(error),
-        failedAt: new Date().toISOString(),
-      });
+if (
+  process.argv[1] &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+) {
+  main().catch((error) => {
+    if (activeOutputDirectory) {
+      if (!fs.existsSync(path.join(activeOutputDirectory, "runner-error.json"))) {
+        writeJson(path.join(activeOutputDirectory, "runner-error.json"), {
+          status: "runner-error",
+          error: error instanceof Error ? error.stack : String(error),
+          failedAt: new Date().toISOString(),
+        });
+      }
+      const resultPath = path.join(activeOutputDirectory, "result.json");
+      if (!fs.existsSync(resultPath)) {
+        const failedAt = new Date();
+        const result = {
+          schemaVersion: 1,
+          project: argument("--project", process.env.T1_PROJECT) ?? null,
+          product: argument("--provider", process.env.T1_PROVIDER) ?? null,
+          status: "failure",
+          operatingSystem: process.env.T1_OPERATING_SYSTEM ?? process.platform,
+          providerLoaded: false,
+          providerImportCompleted: false,
+          providerImportStatus: "not-loaded",
+          providerTerminalState: null,
+          loadSuccessful: false,
+          loadStatus: "not-loaded",
+          failureCategory: "runner-error",
+          failedPhase: "runner",
+          errorCount: 0,
+          warningCount: 0,
+          diagnosticsCaptured: false,
+          completedAt: failedAt.toISOString(),
+          totalDurationMs: failedAt.getTime() - scriptStartedAt,
+          error: error instanceof Error ? error.stack : String(error),
+        };
+        writeJson(resultPath, result);
+        appendGithubSummary(result);
+      }
     }
-    const resultPath = path.join(activeOutputDirectory, "result.json");
-    if (!fs.existsSync(resultPath)) {
-      const failedAt = new Date();
-      const result = {
-        schemaVersion: 1,
-        project: argument("--project", process.env.T1_PROJECT) ?? null,
-        product: argument("--provider", process.env.T1_PROVIDER) ?? null,
-        status: "failure",
-        operatingSystem: process.env.T1_OPERATING_SYSTEM ?? process.platform,
-        providerLoaded: false,
-        providerImportCompleted: false,
-        providerImportStatus: "not-loaded",
-        providerTerminalState: null,
-        loadSuccessful: false,
-        loadStatus: "not-loaded",
-        failureCategory: "runner-error",
-        failedPhase: "runner",
-        errorCount: 0,
-        warningCount: 0,
-        diagnosticsCaptured: false,
-        completedAt: failedAt.toISOString(),
-        totalDurationMs: failedAt.getTime() - scriptStartedAt,
-        error: error instanceof Error ? error.stack : String(error),
-      };
-      writeJson(resultPath, result);
-      appendGithubSummary(result);
-    }
-  }
-  console.error(error);
-  process.exitCode = 1;
-});
+    console.error(error);
+    process.exitCode = 1;
+  });
+}
