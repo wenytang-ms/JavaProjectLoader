@@ -54,6 +54,9 @@ export function loadProjects() {
     if (ids.has(project.id)) {
       throw new Error(`Duplicate T1 project id: ${project.id}`);
     }
+    if (!Number.isInteger(project.batch) || project.batch < 1 || project.batch > 4) {
+      throw new Error(`Project ${project.id} requires a batch from 1 through 4.`);
+    }
     ids.add(project.id);
     const projectSetup = environments.get(project.id);
     if (projectSetup) {
@@ -165,11 +168,20 @@ function main() {
   const requestedProject = argument("--project", "all");
   const requestedProvider = argument("--provider", "all");
   const requestedOs = argument("--os", "all");
+  const requestedBatch = Number(argument("--batch", "1"));
   const outputFile = argument("--github-output", process.env.GITHUB_OUTPUT);
   const summaryFile = argument("--summary", process.env.GITHUB_STEP_SUMMARY);
 
+  if (!Number.isInteger(requestedBatch) || requestedBatch < 1 || requestedBatch > 4) {
+    throw new Error(`Unknown batch: ${requestedBatch}`);
+  }
   const selectedProjects = requestedProject === "all"
-    ? projects.filter((project) => project.t1Eligible && project.projectSetup)
+    ? projects.filter(
+        (project) =>
+          project.t1Eligible &&
+          project.projectSetup &&
+          project.batch === requestedBatch,
+      )
     : projects.filter((project) => project.id === requestedProject);
   if (selectedProjects.length === 0) {
     throw new Error(`Unknown project: ${requestedProject}`);
@@ -192,6 +204,7 @@ function main() {
   appendOutput(outputFile, "projects", matrixProjects);
   appendOutput(outputFile, "providers", providers);
   appendOutput(outputFile, "operating_systems", operatingSystems);
+  appendOutput(outputFile, "batch", requestedBatch);
   appendOutput(outputFile, "matrix", {
     include: createMatrixEntries(
       selectedProjects,
@@ -205,7 +218,7 @@ function main() {
     const lines = [
       "## T1 project selection",
       "",
-      `Selected ${matrixProjects.length} project(s), ${providers.length} provider(s), and ${operatingSystems.length} OS image(s).`,
+      `Selected batch ${requestedBatch}: ${matrixProjects.length} project(s), ${providers.length} provider(s), and ${operatingSystems.length} OS image(s).`,
       "",
       "Projects without Java source are retained in `lab/t1-projects.json` but excluded from the default matrix:",
       ...notApplicable.map((project) => `- \`${project.id}\`: ${project.reason}`),

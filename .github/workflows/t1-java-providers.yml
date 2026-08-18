@@ -4,10 +4,20 @@ on:
   workflow_dispatch:
     inputs:
       project:
-        description: "Project id from lab/t1-projects.json, or all 20 configured cases"
+        description: "Project id from lab/t1-projects.json, or the selected 25-project batch"
         required: true
         default: all
         type: string
+      batch:
+        description: "25-project corpus batch; ignored when a project id is provided"
+        required: true
+        default: "1"
+        type: choice
+        options:
+          - "1"
+          - "2"
+          - "3"
+          - "4"
       provider:
         description: "Java language provider"
         required: true
@@ -51,6 +61,7 @@ jobs:
         run: |
           node lab/t1-action/create-matrix.mjs \
             --project "${{ inputs.project }}" \
+            --batch "${{ inputs.batch }}" \
             --provider "${{ inputs.provider }}" \
             --os "${{ inputs.operating_system }}" \
             --github-output "$GITHUB_OUTPUT" \
@@ -62,6 +73,7 @@ jobs:
     timeout-minutes: 75
     strategy:
       fail-fast: false
+      max-parallel: 20
       matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
     runs-on: ${{ matrix.os }}
     env:
@@ -192,7 +204,7 @@ jobs:
       - name: Upload aggregate conclusion
         uses: actions/upload-artifact@v4
         with:
-          name: t1-aggregate-conclusion
+          name: t1-aggregate-conclusion-batch-${{ inputs.batch }}
           path: lab/t1-action/aggregate-output
           if-no-files-found: error
           retention-days: 30

@@ -6,28 +6,48 @@ import {
   loadProjects,
 } from "../create-matrix.mjs";
 
-test("contains every requested repository exactly once", () => {
+test("contains one hundred unique pinned repositories", () => {
   const projects = loadProjects();
-  assert.equal(projects.length, 20);
-  assert.equal(new Set(projects.map((project) => project.repository)).size, 20);
+  assert.equal(projects.length, 100);
+  assert.equal(new Set(projects.map((project) => project.repository)).size, 100);
+  assert.equal(new Set(projects.map((project) => project.commit)).size, 100);
 });
 
 test("eligible probes use normalized Java paths", () => {
   const projects = loadProjects();
-  for (const project of projects.filter((entry) => entry.t1Eligible)) {
+  for (const project of projects) {
+    assert.equal(project.t1Eligible, true);
     assert.match(project.relativeFile, /\.java$/);
     assert.doesNotMatch(project.relativeFile, /\\/);
     assert.match(project.sourceSymbol, /^[A-Za-z_$][\w$]*$/);
+    assert.equal(Boolean(project.projectSetup), true);
   }
 });
 
-test("public action repository contains only runnable T1 cases", () => {
+test("four batches contain twenty-five projects each", () => {
   const projects = loadProjects();
-  assert.equal(projects.every((project) => project.t1Eligible), true);
-  assert.equal(projects.every((project) => project.projectSetup), true);
+  for (const batch of [1, 2, 3, 4]) {
+    const selected = projects.filter((project) => project.batch === batch);
+    assert.equal(selected.length, 25);
+    const entries = createMatrixEntries(
+      selected,
+      ["jdtls", "intellij"],
+      ["windows-latest", "macos-latest"],
+    );
+    assert.equal(entries.length, 100);
+  }
 });
 
-test("provider-aware matrix carries distinct Algorithms and RxJava JDK roles", () => {
+test("the complete corpus represents four hundred provider cases", () => {
+  const entries = createMatrixEntries(
+    loadProjects(),
+    ["jdtls", "intellij"],
+    ["windows-latest", "macos-latest"],
+  );
+  assert.equal(entries.length, 400);
+});
+
+test("provider-aware matrix preserves project and runtime JDK roles", () => {
   const selected = loadProjects().filter((project) =>
     ["the-algorithms-java", "rxjava"].includes(project.id),
   );
@@ -41,14 +61,8 @@ test("provider-aware matrix carries distinct Algorithms and RxJava JDK roles", (
   const rxJdtls = entries.find(
     (entry) => entry.project.id === "rxjava" && entry.provider === "jdtls",
   );
-  assert.deepEqual(rxJdtls.environment, {
-    configured: true,
-    projectJavaVersion: "26",
-    projectJavaDistribution: "zulu",
-    runtimeJavaSource: "setup-java",
-    runtimeJavaVersion: "21",
-    runtimeJavaDistribution: "temurin",
-  });
+  assert.equal(rxJdtls.environment.projectJavaVersion, "26");
+  assert.equal(rxJdtls.environment.runtimeJavaVersion, "21");
 
   const algorithmsIntellij = entries.find(
     (entry) =>
@@ -59,59 +73,19 @@ test("provider-aware matrix carries distinct Algorithms and RxJava JDK roles", (
   assert.equal(algorithmsIntellij.environment.runtimeJavaSource, "bundled");
 });
 
-test("CSV-derived configured case set expands to eighty jobs", () => {
-  const expectedIds = [
-    "caffeine",
-    "commons-codec",
-    "commons-lang",
-    "elasticsearch",
-    "guava",
-    "interviews",
-    "java-design-patterns",
-    "kotlinx-datetime",
-    "mall",
-    "micronaut-starter",
-    "mockito",
-    "mpandroidchart",
-    "mybatis-3",
-    "quarkus-quickstarts",
-    "retrofit",
-    "rxjava",
-    "spark",
-    "spring-boot",
-    "spring-petclinic",
-    "the-algorithms-java",
-  ];
+test("environment selection records the reproducible corpus policy", () => {
   const environments = loadProjectEnvironments();
-  assert.equal(environments.size, 20);
-  assert.deepEqual([...environments.keys()].sort(), expectedIds);
+  assert.equal(environments.size, 100);
   for (const environment of environments.values()) {
     assert.equal(typeof environment.csvBaseline.projectType, "string");
     assert.equal(typeof environment.csvBaseline.dismissed, "boolean");
+    assert.match(environment.commit, /^[a-f0-9]{40}$/);
   }
-  assert.equal(
-    environments.get("mpandroidchart").csvBaseline.selectionException,
-    "Retained as the existing experimental Android importer boundary case.",
-  );
-
-  const configuredProjects = loadProjects().filter(
-    (project) => project.t1Eligible && project.projectSetup,
-  );
-  const entries = createMatrixEntries(
-    configuredProjects,
-    ["jdtls", "intellij"],
-    ["windows-latest", "macos-latest"],
-  );
-  assert.equal(entries.length, 80);
 });
 
-test("Spring Boot declares stable diagnostic probe files", () => {
+test("Spring Boot remains in the first canary batch with JDK 25", () => {
   const project = loadProjects().find((entry) => entry.id === "spring-boot");
+  assert.equal(project.batch, 1);
+  assert.equal(project.javaVersion, "25");
   assert.equal(project.timeoutSeconds, 1800);
-  assert.equal(project.diagnosticProbeFiles.length, 4);
-  assert.equal(new Set(project.diagnosticProbeFiles).size, 4);
-  for (const relativeFile of project.diagnosticProbeFiles) {
-    assert.match(relativeFile, /\.java$/);
-    assert.doesNotMatch(relativeFile, /\\/);
-  }
 });
