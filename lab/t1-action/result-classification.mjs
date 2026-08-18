@@ -13,6 +13,22 @@ export function buildProviderLoadResult(log, ui) {
   if (!log.loaded) {
     const importFailed =
       log.failed || log.failureCategory === "provider-import-failed";
+    const initializationCompleted =
+      log.initializationCompleted ||
+      ["initialization-finished", "workspace-initialized"].includes(
+        log.lastObservation,
+      );
+    if (!importFailed && initializationCompleted) {
+      return {
+        loaded: true,
+        importCompleted: false,
+        importStatus: "loaded-finalization-timeout",
+        terminalState: null,
+        failureCategory: "provider-finalization-timeout",
+        log,
+        ui: null,
+      };
+    }
     return {
       loaded: false,
       importCompleted: importFailed,
@@ -27,12 +43,19 @@ export function buildProviderLoadResult(log, ui) {
   }
 
   if (!ui?.settled || !ui.terminalState) {
+    const indexing = /(?:Indexing|Java:\s*Searching)/i.test(
+      ui?.finalStatusBarText ?? "",
+    );
     return {
-      loaded: false,
-      importCompleted: false,
-      importStatus: "not-loaded",
+      loaded: true,
+      importCompleted: true,
+      importStatus: indexing
+        ? "loaded-indexing-timeout"
+        : "loaded-ui-timeout",
       terminalState: null,
-      failureCategory: "provider-ui-timeout",
+      failureCategory: indexing
+        ? "provider-indexing-timeout"
+        : "provider-ui-timeout",
       log,
       ui,
     };
@@ -73,6 +96,31 @@ export function buildProviderLoadResult(log, ui) {
   };
 }
 
+export function reconcileProviderLoadResult(
+  providerLoad,
+  { sourceReady, diagnosticsStable, errorCount },
+) {
+  if (
+    providerLoad.importStatus !== "loaded-finalization-timeout" ||
+    !providerLoad.log?.bspClasspathsUpdated ||
+    !sourceReady ||
+    !diagnosticsStable ||
+    errorCount > 0
+  ) {
+    return providerLoad;
+  }
+
+  return {
+    ...providerLoad,
+    loaded: true,
+    importCompleted: true,
+    importStatus: "ready",
+    terminalState: "ready",
+    failureCategory: "",
+    completionEvidence: "bsp-source-ready",
+  };
+}
+
 export function classifyLoadResult({
   sourceReady,
   sourceFailureCategory,
@@ -93,6 +141,30 @@ export function classifyLoadResult({
       successful: false,
       loadStatus: "import-failed",
       failureCategory: "provider-import-failed",
+      failedPhase: "provider-load",
+    };
+  }
+  if (providerLoad.importStatus === "loaded-finalization-timeout") {
+    return {
+      successful: false,
+      loadStatus: "loaded-finalization-timeout",
+      failureCategory: "provider-finalization-timeout",
+      failedPhase: "provider-load",
+    };
+  }
+  if (providerLoad.importStatus === "loaded-indexing-timeout") {
+    return {
+      successful: false,
+      loadStatus: "loaded-indexing-timeout",
+      failureCategory: "provider-indexing-timeout",
+      failedPhase: "source-index",
+    };
+  }
+  if (providerLoad.importStatus === "loaded-ui-timeout") {
+    return {
+      successful: false,
+      loadStatus: "loaded-ui-timeout",
+      failureCategory: "provider-ui-timeout",
       failedPhase: "provider-load",
     };
   }

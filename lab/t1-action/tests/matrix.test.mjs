@@ -8,8 +8,8 @@ import {
 
 test("contains every requested repository exactly once", () => {
   const projects = loadProjects();
-  assert.equal(projects.length, 10);
-  assert.equal(new Set(projects.map((project) => project.repository)).size, 10);
+  assert.equal(projects.length, 20);
+  assert.equal(new Set(projects.map((project) => project.repository)).size, 20);
 });
 
 test("eligible probes use normalized Java paths", () => {
@@ -59,21 +59,31 @@ test("provider-aware matrix carries distinct Algorithms and RxJava JDK roles", (
   assert.equal(algorithmsIntellij.environment.runtimeJavaSource, "bundled");
 });
 
-test("CSV-derived configured case set expands to sixty jobs", () => {
+test("CSV-derived configured case set expands to one hundred twenty jobs", () => {
   const expectedIds = [
+    "caffeine",
+    "commons-codec",
+    "commons-lang",
     "elasticsearch",
     "guava",
     "interviews",
     "java-design-patterns",
+    "kotlinx-datetime",
     "mall",
+    "micronaut-starter",
+    "mockito",
     "mpandroidchart",
+    "mybatis-3",
+    "quarkus-quickstarts",
+    "retrofit",
     "rxjava",
     "spark",
     "spring-boot",
+    "spring-petclinic",
     "the-algorithms-java",
   ];
   const environments = loadProjectEnvironments();
-  assert.equal(environments.size, 10);
+  assert.equal(environments.size, 20);
   assert.deepEqual([...environments.keys()].sort(), expectedIds);
   for (const environment of environments.values()) {
     assert.equal(typeof environment.csvBaseline.projectType, "string");
@@ -92,7 +102,7 @@ test("CSV-derived configured case set expands to sixty jobs", () => {
     ["jdtls", "intellij"],
     ["ubuntu-latest", "windows-latest", "macos-latest"],
   );
-  assert.equal(entries.length, 60);
+  assert.equal(entries.length, 120);
 });
 
 test("Spring Boot declares stable diagnostic probe files", () => {

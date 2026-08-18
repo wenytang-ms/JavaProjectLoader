@@ -19,6 +19,7 @@ import {
   buildProviderLoadResult,
   classifyLoadResult,
   detectProviderTerminalState,
+  reconcileProviderLoadResult,
 } from "./result-classification.mjs";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
@@ -319,6 +320,8 @@ async function waitForProviderLogMilestone(
   const startedAt = Date.now();
   let logPath = null;
   let lastObservation = "";
+  let initializationCompleted = false;
+  let bspClasspathsUpdated = false;
 
   while (Date.now() - startedAt < timeoutMs) {
     if (provider === "jdtls") {
@@ -340,6 +343,12 @@ async function waitForProviderLogMilestone(
     logPath ??= findProviderLog(profile.userDataDirectory, provider);
     if (logPath && fs.existsSync(logPath)) {
       const content = fs.readFileSync(logPath, "utf8");
+      initializationCompleted =
+        content.includes(">> initialization job finished") ||
+        content.includes("Workspace initialized");
+      bspClasspathsUpdated =
+        /Updating classpaths for \d+ projects? \(\d+ build targets?\) using batched BSP calls\./
+          .test(content);
       if (provider === "intellij" && /\bBUILD FAILED\b/.test(content)) {
         const result = {
           loaded: false,
@@ -360,8 +369,10 @@ async function waitForProviderLogMilestone(
         provider === "jdtls"
           ? content.includes(">> build jobs finished")
             ? "build-jobs-finished"
-            : content.includes("Workspace initialized")
-              ? "workspace-initialized"
+            : initializationCompleted
+              ? "initialization-finished"
+              : bspClasspathsUpdated
+                ? "bsp-classpaths-updated"
               : "waiting-for-workspace"
           : content.includes("Workspace model cache saved")
             ? "workspace-model-saved"
@@ -375,6 +386,8 @@ async function waitForProviderLogMilestone(
           logPath,
           durationMs: Date.now() - startedAt,
           lastObservation,
+          initializationCompleted,
+          bspClasspathsUpdated,
         };
         writeJson(path.join(outputDirectory, "provider-log-readiness.json"), result);
         return result;
@@ -390,6 +403,8 @@ async function waitForProviderLogMilestone(
     logPath,
     durationMs: Date.now() - startedAt,
     lastObservation,
+    initializationCompleted,
+    bspClasspathsUpdated,
   };
   writeJson(path.join(outputDirectory, "provider-log-readiness.json"), result);
   return result;
@@ -966,7 +981,7 @@ async function main() {
       Math.max(0, deadline - Date.now()),
       outputDirectory,
     );
-    const providerLoad = await waitForProviderIdleAfterLog(
+    const observedProviderLoad = await waitForProviderIdleAfterLog(
       driver,
       provider,
       deadline,
@@ -975,7 +990,7 @@ async function main() {
     );
     const sourceResult = fs.existsSync(sourceResultPath)
       ? JSON.parse(fs.readFileSync(sourceResultPath, "utf8"))
-      : providerLoad.importStatus === "ready"
+      : observedProviderLoad.importStatus === "ready"
         ? await waitForT1Result(
             driver,
             sourceResultPath,
@@ -989,7 +1004,7 @@ async function main() {
             status: "failure",
             sourceReadyAt: null,
             sourceAttempts: 0,
-            failureCategory: providerLoad.failureCategory,
+            failureCategory: observedProviderLoad.failureCategory,
             error: null,
           };
     const diagnosticFiles = [...new Set([
@@ -1008,6 +1023,11 @@ async function main() {
       !sourceResult.error;
     const errorCount = Number(diagnostics.counts?.error ?? 0);
     const warningCount = Number(diagnostics.counts?.warning ?? 0);
+    const providerLoad = reconcileProviderLoadResult(observedProviderLoad, {
+      sourceReady,
+      diagnosticsStable: diagnostics.stable,
+      errorCount,
+    });
     const classification = classifyLoadResult({
       sourceReady,
       sourceFailureCategory: sourceResult.failureCategory,

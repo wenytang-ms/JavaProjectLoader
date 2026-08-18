@@ -55,6 +55,7 @@ test("workflow provisions a dedicated Android SDK tooling JDK", () => {
   );
   assert.match(workflow, /timeout-minutes: 75/);
   assert.match(workflow, /name: Set up Android SDK tooling JDK/);
+  assert.match(workflow, /matrix\.environment\.requiresAndroidSdk == true/);
   assert.match(workflow, /java-version: 17/);
   assert.match(workflow, /T1_ANDROID_SDK_JAVA_HOME=\$env:JAVA_HOME/);
 });
@@ -192,6 +193,42 @@ test("seven added CSV cases expose pinned project toolchains", () => {
     interviews: ["maven", "3.9.11", "21"],
     guava: ["maven", "3.9.12", "26"],
     spark: ["maven", "3.9.11", "17"],
+  };
+
+  for (const [id, [buildTool, buildVersion, javaVersion]] of Object.entries(
+    expected,
+  )) {
+    const project = projects.find((entry) => entry.id === id);
+    assert.equal(project.projectSetup.buildTool, buildTool);
+    assert.equal(project.projectSetup.buildToolVersion, buildVersion);
+    assert.equal(
+      project.projectSetup.providers.jdtls.projectJava.version,
+      javaVersion,
+    );
+    assert.equal(
+      project.projectSetup.providers.jdtls.runtimeJava.version,
+      "21",
+    );
+    assert.equal(
+      project.projectSetup.providers.intellij.runtimeJava.source,
+      "bundled",
+    );
+  }
+});
+
+test("ten deterministic CSV cases expose pinned project toolchains", () => {
+  const projects = loadProjects();
+  const expected = {
+    retrofit: ["gradle", "9.4.0", "21"],
+    "spring-petclinic": ["maven", "3.9.11", "17"],
+    "micronaut-starter": ["gradle", "9.6.0", "25"],
+    mockito: ["gradle", "8.14.2", "21"],
+    "kotlinx-datetime": ["gradle", "9.6.1", "21"],
+    "commons-lang": ["maven", "3.9.16", "17"],
+    "quarkus-quickstarts": ["maven", "3.9.11", "17"],
+    "mybatis-3": ["maven", "3.9.16", "11"],
+    caffeine: ["gradle", "9.7.0-rc-3", "21"],
+    "commons-codec": ["maven", "3.9.11", "8"],
   };
 
   for (const [id, [buildTool, buildVersion, javaVersion]] of Object.entries(

@@ -97,6 +97,15 @@ function providerRows(rows) {
       projectErrors: selected.filter(
         (row) => row.loadStatus === "loaded-with-project-errors",
       ).length,
+      finalizationTimeouts: selected.filter(
+        (row) => row.loadStatus === "loaded-finalization-timeout",
+      ).length,
+      indexingTimeouts: selected.filter(
+        (row) => row.loadStatus === "loaded-indexing-timeout",
+      ).length,
+      uiTimeouts: selected.filter(
+        (row) => row.loadStatus === "loaded-ui-timeout",
+      ).length,
       notLoaded: selected.filter((row) => row.loadStatus === "not-loaded").length,
     };
   });
@@ -143,12 +152,14 @@ function markdown(summary) {
     "",
     "### Provider conclusion",
     "",
-    "| Provider | Success | Failure | Import failed | Project errors | Not loaded |",
-    "|---|---:|---:|---:|---:|---:|",
+    "| Provider | Success | Failure | Import failed | Project errors | Finalization timeout | Indexing timeout | UI timeout | Not loaded |",
+    "|---|---:|---:|---:|---:|---:|---:|---:|---:|",
     ...summary.providers.map(
       (row) =>
         `| ${row.provider} | ${row.success}/${row.total} | ${row.failure} | ` +
-        `${row.importFailed} | ${row.projectErrors} | ${row.notLoaded} |`,
+        `${row.importFailed} | ${row.projectErrors} | ` +
+        `${row.finalizationTimeouts} | ${row.indexingTimeouts} | ` +
+        `${row.uiTimeouts} | ${row.notLoaded} |`,
     ),
     "",
     "### OS conclusion",

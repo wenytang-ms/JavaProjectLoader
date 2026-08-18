@@ -105,5 +105,105 @@
     "javaVersion": "17",
     "timeoutSeconds": 1200,
     "t1Eligible": true
+  },
+  {
+    "id": "retrofit",
+    "repository": "https://github.com/square/retrofit.git",
+    "commit": "d0b112dad073b7fe49c953ebc46ff1b424cb1e51",
+    "relativeFile": "retrofit-adapters/guava/src/main/java/retrofit2/adapter/guava/GuavaCallAdapterFactory.java",
+    "sourceSymbol": "GuavaCallAdapterFactory",
+    "javaVersion": "21",
+    "timeoutSeconds": 900,
+    "t1Eligible": true
+  },
+  {
+    "id": "spring-petclinic",
+    "repository": "https://github.com/spring-projects/spring-petclinic.git",
+    "commit": "88e37c15cf6fc8490b01bc3e8e2c800cec1ac272",
+    "relativeFile": "src/main/java/org/springframework/samples/petclinic/model/BaseEntity.java",
+    "sourceSymbol": "BaseEntity",
+    "javaVersion": "17",
+    "timeoutSeconds": 1200,
+    "t1Eligible": true
+  },
+  {
+    "id": "micronaut-starter",
+    "repository": "https://github.com/micronaut-projects/micronaut-starter.git",
+    "commit": "9da4aae25fc7604b1dad660a18d193ef49612254",
+    "relativeFile": "starter-api/src/main/java/io/micronaut/starter/api/analytics/GenerationListener.java",
+    "sourceSymbol": "GenerationListener",
+    "javaVersion": "25",
+    "timeoutSeconds": 900,
+    "t1Eligible": true
+  },
+  {
+    "id": "mockito",
+    "repository": "https://github.com/mockito/mockito.git",
+    "commit": "ee8a330da0218f32d5964acdeaa3ac39e2c6ce14",
+    "relativeFile": "mockito-core/src/main/java/org/mockito/AdditionalAnswers.java",
+    "sourceSymbol": "AdditionalAnswers",
+    "javaVersion": "21",
+    "timeoutSeconds": 900,
+    "t1Eligible": true
+  },
+  {
+    "id": "kotlinx-datetime",
+    "repository": "https://github.com/Kotlin/kotlinx-datetime.git",
+    "commit": "4ea2f792db3d7d084972c884a78650a1ec8f2134",
+    "relativeFile": "integration-testing/jpms-test/src/main/java/my/jpms/test/InitLocalDate.java",
+    "sourceSymbol": "InitLocalDate",
+    "javaVersion": "21",
+    "timeoutSeconds": 900,
+    "t1Eligible": true
+  },
+  {
+    "id": "commons-lang",
+    "repository": "https://github.com/apache/commons-lang.git",
+    "commit": "9d1f110190081801754a8a0b447693ad2407a502",
+    "relativeFile": "src/main/java/org/apache/commons/lang3/AnnotationUtils.java",
+    "sourceSymbol": "AnnotationUtils",
+    "javaVersion": "17",
+    "timeoutSeconds": 900,
+    "t1Eligible": true
+  },
+  {
+    "id": "quarkus-quickstarts",
+    "repository": "https://github.com/quarkusio/quarkus-quickstarts.git",
+    "commit": "d05f3489bb06e3f66a39ce1f77baf78888e09bbe",
+    "relativeFile": "amazon-dynamodb-quickstart/src/main/java/org/acme/dynamodb/AbstractService.java",
+    "sourceSymbol": "AbstractService",
+    "javaVersion": "17",
+    "timeoutSeconds": 1500,
+    "t1Eligible": true
+  },
+  {
+    "id": "mybatis-3",
+    "repository": "https://github.com/mybatis/mybatis-3.git",
+    "commit": "27cbe4f039ab9c58e4dd33586b54a8348696b19b",
+    "relativeFile": "src/main/java/org/apache/ibatis/annotations/Arg.java",
+    "sourceSymbol": "Arg",
+    "javaVersion": "11",
+    "timeoutSeconds": 1200,
+    "t1Eligible": true
+  },
+  {
+    "id": "caffeine",
+    "repository": "https://github.com/ben-manes/caffeine.git",
+    "commit": "33127bbab8ef48517744ee1defb72134e1f3d0c0",
+    "relativeFile": "caffeine/src/main/java/com/github/benmanes/caffeine/cache/AbstractLinkedDeque.java",
+    "sourceSymbol": "AbstractLinkedDeque",
+    "javaVersion": "21",
+    "timeoutSeconds": 900,
+    "t1Eligible": true
+  },
+  {
+    "id": "commons-codec",
+    "repository": "https://github.com/apache/commons-codec.git",
+    "commit": "4f84d6bfba96ac2ee69c0c3a8dfe40870ba0367b",
+    "relativeFile": "src/main/java/org/apache/commons/codec/binary/Base16.java",
+    "sourceSymbol": "Base16",
+    "javaVersion": "8",
+    "timeoutSeconds": 900,
+    "t1Eligible": true
   }
 ]

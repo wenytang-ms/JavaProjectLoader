@@ -106,7 +106,7 @@ function matrixEnvironment(project, provider) {
     };
   }
 
-  return {
+  const environment = {
     configured: true,
     projectJavaVersion: providerSetup.projectJava.version,
     projectJavaDistribution: providerSetup.projectJava.distribution,
@@ -114,6 +114,10 @@ function matrixEnvironment(project, provider) {
     runtimeJavaVersion: providerSetup.runtimeJava.version ?? "",
     runtimeJavaDistribution: providerSetup.runtimeJava.distribution ?? "",
   };
+  if (project.projectSetup.androidSdk) {
+    environment.requiresAndroidSdk = true;
+  }
+  return environment;
 }
 
 export function createMatrixEntries(projects, providers, operatingSystems) {

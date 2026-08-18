@@ -1,8 +1,10 @@
 {
   "schemaVersion": 1,
   "selection": {
-    "targetCaseCount": 10,
-    "policy": "Use the nine non-dismissed source projects shared by the original repository inventory and the CSV baseline, plus the existing MPAndroidChart Android boundary case."
+    "targetCaseCount": 20,
+    "policy": "Retain the existing ten T1 cases and add ten deterministic random Java cases from lab/corpus-cases.csv and lab/corpus-lock.csv.",
+    "randomSeed": "t1-120-20260818",
+    "replacement": "The sampled Lombok revision was Ant-only and outside the Maven/Gradle harness contract, so the next sampled eligible case, commons-codec, replaced it."
   },
   "projects": [
     {
@@ -636,6 +638,599 @@
         ".github/workflows/build_and_test.yml",
         ".mvn/jvm.config",
         ".mvn/maven.config"
+      ]
+    },
+    {
+      "id": "retrofit",
+      "repository": "https://github.com/square/retrofit.git",
+      "commit": "d0b112dad073b7fe49c953ebc46ff1b424cb1e51",
+      "csvBaseline": {
+        "projectType": "Gradle",
+        "dismissed": false,
+        "selectionSeed": "t1-120-20260818"
+      },
+      "buildTool": "gradle",
+      "buildToolVersion": "9.4.0",
+      "buildToolVersionSource": "gradle/wrapper/gradle-wrapper.properties",
+      "selectionReason": "Deterministically sampled Gradle case; the Guava adapter provides a stable Java probe without selecting an Android source file.",
+      "gradleWrapper": {
+        "path": "gradle/wrapper/gradle-wrapper.properties",
+        "enabled": true
+      },
+      "buildDescriptors": {
+        "gradle": [
+          "build.gradle",
+          "settings.gradle"
+        ],
+        "maven": []
+      },
+      "providers": {
+        "jdtls": {
+          "runtimeJava": {
+            "source": "setup-java",
+            "distribution": "temurin",
+            "version": "21"
+          },
+          "projectJava": {
+            "distribution": "temurin",
+            "version": "21"
+          },
+          "vscodeSettings": {
+            "java.import.gradle.enabled": true,
+            "java.import.maven.enabled": false,
+            "java.import.gradle.wrapper.enabled": true,
+            "java.gradle.buildServer.enabled": "on"
+          }
+        },
+        "intellij": {
+          "runtimeJava": {
+            "source": "bundled"
+          },
+          "projectJava": {
+            "distribution": "temurin",
+            "version": "21"
+          },
+          "vscodeSettings": {}
+        }
+      },
+      "evidenceFiles": [
+        "README.md",
+        "build.gradle",
+        "settings.gradle",
+        "gradle/wrapper/gradle-wrapper.properties"
+      ]
+    },
+    {
+      "id": "spring-petclinic",
+      "repository": "https://github.com/spring-projects/spring-petclinic.git",
+      "commit": "88e37c15cf6fc8490b01bc3e8e2c800cec1ac272",
+      "csvBaseline": {
+        "projectType": "Maven+Gradle",
+        "dismissed": false,
+        "selectionSeed": "t1-120-20260818"
+      },
+      "buildTool": "maven",
+      "buildToolVersion": "3.9.11",
+      "buildToolVersionSource": ".mvn/wrapper/maven-wrapper.properties",
+      "selectionReason": "Deterministically sampled dual-build project; Maven is selected explicitly to prevent duplicate imports.",
+      "buildDescriptors": {
+        "maven": [
+          "pom.xml"
+        ],
+        "gradle": [
+          "build.gradle",
+          "settings.gradle"
+        ]
+      },
+      "maven": {
+        "downloadUrl": "https://archive.apache.org/dist/maven/maven-3/3.9.11/binaries/apache-maven-3.9.11-bin.zip",
+        "sha512": "03e2d65d4483a3396980629f260e25cac0d8b6f7f2791e4dc20bc83f9514db8d0f05b0479e699a5f34679250c49c8e52e961262ded468a20de0be254d8207076"
+      },
+      "providers": {
+        "jdtls": {
+          "runtimeJava": {
+            "source": "setup-java",
+            "distribution": "temurin",
+            "version": "21"
+          },
+          "projectJava": {
+            "distribution": "temurin",
+            "version": "17"
+          },
+          "vscodeSettings": {
+            "java.import.maven.enabled": true,
+            "java.import.gradle.enabled": false
+          }
+        },
+        "intellij": {
+          "runtimeJava": {
+            "source": "bundled"
+          },
+          "projectJava": {
+            "distribution": "temurin",
+            "version": "17"
+          },
+          "vscodeSettings": {}
+        }
+      },
+      "evidenceFiles": [
+        "README.md",
+        "pom.xml",
+        "build.gradle",
+        "settings.gradle",
+        ".mvn/wrapper/maven-wrapper.properties",
+        ".github/workflows/maven-build.yml"
+      ]
+    },
+    {
+      "id": "micronaut-starter",
+      "repository": "https://github.com/micronaut-projects/micronaut-starter.git",
+      "commit": "9da4aae25fc7604b1dad660a18d193ef49612254",
+      "csvBaseline": {
+        "projectType": "Gradle",
+        "dismissed": false,
+        "selectionSeed": "t1-120-20260818"
+      },
+      "buildTool": "gradle",
+      "buildToolVersion": "9.6.0",
+      "buildToolVersionSource": "gradle/wrapper/gradle-wrapper.properties",
+      "selectionReason": "Deterministically sampled Gradle multi-project with a stable starter-api Java probe.",
+      "gradleWrapper": {
+        "path": "gradle/wrapper/gradle-wrapper.properties",
+        "enabled": true
+      },
+      "buildDescriptors": {
+        "gradle": [
+          "build.gradle",
+          "settings.gradle"
+        ],
+        "maven": []
+      },
+      "providers": {
+        "jdtls": {
+          "runtimeJava": {
+            "source": "setup-java",
+            "distribution": "temurin",
+            "version": "21"
+          },
+          "projectJava": {
+            "distribution": "temurin",
+            "version": "25"
+          },
+          "vscodeSettings": {
+            "java.import.gradle.enabled": true,
+            "java.import.maven.enabled": false,
+            "java.import.gradle.wrapper.enabled": true,
+            "java.gradle.buildServer.enabled": "on"
+          }
+        },
+        "intellij": {
+          "runtimeJava": {
+            "source": "bundled"
+          },
+          "projectJava": {
+            "distribution": "temurin",
+            "version": "25"
+          },
+          "vscodeSettings": {}
+        }
+      },
+      "evidenceFiles": [
+        "README.md",
+        "build.gradle",
+        "settings.gradle",
+        "gradle.properties",
+        "gradle/wrapper/gradle-wrapper.properties"
+      ]
+    },
+    {
+      "id": "mockito",
+      "repository": "https://github.com/mockito/mockito.git",
+      "commit": "ee8a330da0218f32d5964acdeaa3ac39e2c6ce14",
+      "csvBaseline": {
+        "projectType": "Gradle",
+        "dismissed": false,
+        "selectionSeed": "t1-120-20260818"
+      },
+      "buildTool": "gradle",
+      "buildToolVersion": "8.14.2",
+      "buildToolVersionSource": "gradle/wrapper/gradle-wrapper.properties",
+      "selectionReason": "Deterministically sampled Gradle multi-project; Android plugins are present but the pinned root does not expose an exact SDK provisioning contract.",
+      "gradleWrapper": {
+        "path": "gradle/wrapper/gradle-wrapper.properties",
+        "enabled": true
+      },
+      "buildDescriptors": {
+        "gradle": [
+          "build.gradle.kts",
+          "settings.gradle.kts"
+        ],
+        "maven": []
+      },
+      "providers": {
+        "jdtls": {
+          "runtimeJava": {
+            "source": "setup-java",
+            "distribution": "temurin",
+            "version": "21"
+          },
+          "projectJava": {
+            "distribution": "temurin",
+            "version": "21"
+          },
+          "vscodeSettings": {
+            "java.import.gradle.enabled": true,
+            "java.import.maven.enabled": false,
+            "java.import.gradle.wrapper.enabled": true,
+            "java.gradle.buildServer.enabled": "on"
+          }
+        },
+        "intellij": {
+          "runtimeJava": {
+            "source": "bundled"
+          },
+          "projectJava": {
+            "distribution": "temurin",
+            "version": "21"
+          },
+          "vscodeSettings": {}
+        }
+      },
+      "evidenceFiles": [
+        "README.md",
+        "build.gradle.kts",
+        "settings.gradle.kts",
+        "gradle.properties",
+        "gradle/wrapper/gradle-wrapper.properties"
+      ]
+    },
+    {
+      "id": "kotlinx-datetime",
+      "repository": "https://github.com/Kotlin/kotlinx-datetime.git",
+      "commit": "4ea2f792db3d7d084972c884a78650a1ec8f2134",
+      "csvBaseline": {
+        "projectType": "Gradle",
+        "dismissed": false,
+        "selectionSeed": "t1-120-20260818"
+      },
+      "buildTool": "gradle",
+      "buildToolVersion": "9.6.1",
+      "buildToolVersionSource": "gradle/wrapper/gradle-wrapper.properties",
+      "selectionReason": "Deterministically sampled Kotlin multiplatform build with a Java JPMS integration probe; JDK 21 runs Gradle while project toolchains target older releases.",
+      "gradleWrapper": {
+        "path": "gradle/wrapper/gradle-wrapper.properties",
+        "enabled": true
+      },
+      "buildDescriptors": {
+        "gradle": [
+          "build.gradle.kts",
+          "settings.gradle.kts"
+        ],
+        "maven": []
+      },
+      "providers": {
+        "jdtls": {
+          "runtimeJava": {
+            "source": "setup-java",
+            "distribution": "temurin",
+            "version": "21"
+          },
+          "projectJava": {
+            "distribution": "temurin",
+            "version": "21"
+          },
+          "vscodeSettings": {
+            "java.import.gradle.enabled": true,
+            "java.import.maven.enabled": false,
+            "java.import.gradle.wrapper.enabled": true,
+            "java.gradle.buildServer.enabled": "on"
+          }
+        },
+        "intellij": {
+          "runtimeJava": {
+            "source": "bundled"
+          },
+          "projectJava": {
+            "distribution": "temurin",
+            "version": "21"
+          },
+          "vscodeSettings": {}
+        }
+      },
+      "evidenceFiles": [
+        "README.md",
+        "build.gradle.kts",
+        "settings.gradle.kts",
+        "gradle.properties",
+        "gradle/wrapper/gradle-wrapper.properties"
+      ]
+    },
+    {
+      "id": "commons-lang",
+      "repository": "https://github.com/apache/commons-lang.git",
+      "commit": "9d1f110190081801754a8a0b447693ad2407a502",
+      "csvBaseline": {
+        "projectType": "Maven",
+        "dismissed": false,
+        "selectionSeed": "t1-120-20260818"
+      },
+      "buildTool": "maven",
+      "buildToolVersion": "3.9.16",
+      "buildToolVersionSource": "The pinned repository has no Maven wrapper; the T1 harness pins Maven 3.9.16.",
+      "selectionReason": "Deterministically sampled standard Maven library using the harness-pinned Maven version.",
+      "buildDescriptors": {
+        "maven": [
+          "pom.xml"
+        ],
+        "gradle": []
+      },
+      "maven": {
+        "downloadUrl": "https://archive.apache.org/dist/maven/maven-3/3.9.16/binaries/apache-maven-3.9.16-bin.zip",
+        "sha512": "ed41650d42485cfc243fad22158caf9cbb5dc408ce7a09ddb94dd42a019de929ca43065bfa450612cf12bf78b5cafa3884b96c090de326ff590448c933454af3"
+      },
+      "providers": {
+        "jdtls": {
+          "runtimeJava": {
+            "source": "setup-java",
+            "distribution": "temurin",
+            "version": "21"
+          },
+          "projectJava": {
+            "distribution": "temurin",
+            "version": "17"
+          },
+          "vscodeSettings": {
+            "java.import.maven.enabled": true,
+            "java.import.gradle.enabled": false
+          }
+        },
+        "intellij": {
+          "runtimeJava": {
+            "source": "bundled"
+          },
+          "projectJava": {
+            "distribution": "temurin",
+            "version": "17"
+          },
+          "vscodeSettings": {}
+        }
+      },
+      "evidenceFiles": [
+        "README.md",
+        "pom.xml",
+        ".github/workflows/maven.yml"
+      ]
+    },
+    {
+      "id": "quarkus-quickstarts",
+      "repository": "https://github.com/quarkusio/quarkus-quickstarts.git",
+      "commit": "d05f3489bb06e3f66a39ce1f77baf78888e09bbe",
+      "csvBaseline": {
+        "projectType": "Maven",
+        "dismissed": false,
+        "selectionSeed": "t1-120-20260818"
+      },
+      "buildTool": "maven",
+      "buildToolVersion": "3.9.11",
+      "buildToolVersionSource": ".mvn/wrapper/maven-wrapper.properties",
+      "selectionReason": "Deterministically sampled large Maven quickstarts reactor with a stable DynamoDB Java probe.",
+      "buildDescriptors": {
+        "maven": [
+          "pom.xml",
+          "amazon-dynamodb-quickstart/pom.xml"
+        ],
+        "gradle": []
+      },
+      "maven": {
+        "downloadUrl": "https://archive.apache.org/dist/maven/maven-3/3.9.11/binaries/apache-maven-3.9.11-bin.zip",
+        "sha512": "03e2d65d4483a3396980629f260e25cac0d8b6f7f2791e4dc20bc83f9514db8d0f05b0479e699a5f34679250c49c8e52e961262ded468a20de0be254d8207076"
+      },
+      "providers": {
+        "jdtls": {
+          "runtimeJava": {
+            "source": "setup-java",
+            "distribution": "temurin",
+            "version": "21"
+          },
+          "projectJava": {
+            "distribution": "temurin",
+            "version": "17"
+          },
+          "vscodeSettings": {
+            "java.import.maven.enabled": true,
+            "java.import.gradle.enabled": false
+          }
+        },
+        "intellij": {
+          "runtimeJava": {
+            "source": "bundled"
+          },
+          "projectJava": {
+            "distribution": "temurin",
+            "version": "17"
+          },
+          "vscodeSettings": {}
+        }
+      },
+      "evidenceFiles": [
+        "README.md",
+        "pom.xml",
+        "amazon-dynamodb-quickstart/pom.xml",
+        ".mvn/wrapper/maven-wrapper.properties"
+      ]
+    },
+    {
+      "id": "mybatis-3",
+      "repository": "https://github.com/mybatis/mybatis-3.git",
+      "commit": "27cbe4f039ab9c58e4dd33586b54a8348696b19b",
+      "csvBaseline": {
+        "projectType": "Maven",
+        "dismissed": false,
+        "selectionSeed": "t1-120-20260818"
+      },
+      "buildTool": "maven",
+      "buildToolVersion": "3.9.16",
+      "buildToolVersionSource": ".mvn/wrapper/maven-wrapper.properties",
+      "selectionReason": "Deterministically sampled Maven library with Java 11 source compatibility.",
+      "buildDescriptors": {
+        "maven": [
+          "pom.xml"
+        ],
+        "gradle": []
+      },
+      "maven": {
+        "downloadUrl": "https://archive.apache.org/dist/maven/maven-3/3.9.16/binaries/apache-maven-3.9.16-bin.zip",
+        "sha512": "ed41650d42485cfc243fad22158caf9cbb5dc408ce7a09ddb94dd42a019de929ca43065bfa450612cf12bf78b5cafa3884b96c090de326ff590448c933454af3"
+      },
+      "providers": {
+        "jdtls": {
+          "runtimeJava": {
+            "source": "setup-java",
+            "distribution": "temurin",
+            "version": "21"
+          },
+          "projectJava": {
+            "distribution": "temurin",
+            "version": "11"
+          },
+          "vscodeSettings": {
+            "java.import.maven.enabled": true,
+            "java.import.gradle.enabled": false
+          }
+        },
+        "intellij": {
+          "runtimeJava": {
+            "source": "bundled"
+          },
+          "projectJava": {
+            "distribution": "temurin",
+            "version": "11"
+          },
+          "vscodeSettings": {}
+        }
+      },
+      "evidenceFiles": [
+        "README.md",
+        "pom.xml",
+        ".mvn/wrapper/maven-wrapper.properties",
+        ".github/workflows/ci.yaml"
+      ]
+    },
+    {
+      "id": "caffeine",
+      "repository": "https://github.com/ben-manes/caffeine.git",
+      "commit": "33127bbab8ef48517744ee1defb72134e1f3d0c0",
+      "csvBaseline": {
+        "projectType": "Gradle",
+        "dismissed": false,
+        "selectionSeed": "t1-120-20260818"
+      },
+      "buildTool": "gradle",
+      "buildToolVersion": "9.7.0-rc-3",
+      "buildToolVersionSource": "gradle/wrapper/gradle-wrapper.properties",
+      "selectionReason": "Deterministically sampled Gradle Kotlin DSL library; JDK 21 runs Gradle while the project targets older Java releases.",
+      "gradleWrapper": {
+        "path": "gradle/wrapper/gradle-wrapper.properties",
+        "enabled": true
+      },
+      "buildDescriptors": {
+        "gradle": [
+          "build.gradle.kts",
+          "settings.gradle.kts"
+        ],
+        "maven": []
+      },
+      "providers": {
+        "jdtls": {
+          "runtimeJava": {
+            "source": "setup-java",
+            "distribution": "temurin",
+            "version": "21"
+          },
+          "projectJava": {
+            "distribution": "temurin",
+            "version": "21"
+          },
+          "vscodeSettings": {
+            "java.import.gradle.enabled": true,
+            "java.import.maven.enabled": false,
+            "java.import.gradle.wrapper.enabled": true,
+            "java.gradle.buildServer.enabled": "on"
+          }
+        },
+        "intellij": {
+          "runtimeJava": {
+            "source": "bundled"
+          },
+          "projectJava": {
+            "distribution": "temurin",
+            "version": "21"
+          },
+          "vscodeSettings": {}
+        }
+      },
+      "evidenceFiles": [
+        "README.md",
+        "build.gradle.kts",
+        "settings.gradle.kts",
+        "gradle/wrapper/gradle-wrapper.properties"
+      ]
+    },
+    {
+      "id": "commons-codec",
+      "repository": "https://github.com/apache/commons-codec.git",
+      "commit": "4f84d6bfba96ac2ee69c0c3a8dfe40870ba0367b",
+      "csvBaseline": {
+        "projectType": "Maven",
+        "dismissed": false,
+        "selectionSeed": "t1-120-20260818"
+      },
+      "buildTool": "maven",
+      "buildToolVersion": "3.9.11",
+      "buildToolVersionSource": "The pinned repository has no Maven wrapper; the T1 harness pins Maven 3.9.11.",
+      "selectionReason": "Deterministic replacement for the sampled Ant-only Lombok revision.",
+      "buildDescriptors": {
+        "maven": [
+          "pom.xml"
+        ],
+        "gradle": []
+      },
+      "maven": {
+        "downloadUrl": "https://archive.apache.org/dist/maven/maven-3/3.9.11/binaries/apache-maven-3.9.11-bin.zip",
+        "sha512": "03e2d65d4483a3396980629f260e25cac0d8b6f7f2791e4dc20bc83f9514db8d0f05b0479e699a5f34679250c49c8e52e961262ded468a20de0be254d8207076"
+      },
+      "providers": {
+        "jdtls": {
+          "runtimeJava": {
+            "source": "setup-java",
+            "distribution": "temurin",
+            "version": "21"
+          },
+          "projectJava": {
+            "distribution": "temurin",
+            "version": "8"
+          },
+          "vscodeSettings": {
+            "java.import.maven.enabled": true,
+            "java.import.gradle.enabled": false
+          }
+        },
+        "intellij": {
+          "runtimeJava": {
+            "source": "bundled"
+          },
+          "projectJava": {
+            "distribution": "temurin",
+            "version": "8"
+          },
+          "vscodeSettings": {}
+        }
+      },
+      "evidenceFiles": [
+        "README.md",
+        "pom.xml",
+        ".github/workflows/maven.yml",
+        "src/main/java/org/apache/commons/codec/binary/Base16.java"
       ]
     }
   ]
