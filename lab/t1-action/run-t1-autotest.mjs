@@ -29,6 +29,25 @@ const providerExtensions = {
   jdtls: "vscjava.vscode-java-pack",
   intellij: "JetBrains.intellij-server",
 };
+const providerExtensionSources = {
+  jdtls: [
+    "vscjava.vscode-java-pack@0.31.1",
+    "redhat.java@1.56.2026073109",
+  ],
+  intellij: ["JetBrains.intellij-server"],
+};
+const providerRefreshExtensions = {
+  jdtls: [
+    "vscjava.vscode-java-pack",
+    "vscjava.vscode-java-test",
+    "vscjava.vscode-java-debug",
+    "vscjava.vscode-java-dependency",
+    "vscjava.vscode-maven",
+    "vscjava.vscode-gradle",
+    "redhat.java",
+  ],
+  intellij: ["JetBrains.intellij-server"],
+};
 const approvedIntellijOnboarding = {
   region: "middle_east",
   dataSharing: "none",
@@ -322,23 +341,14 @@ async function waitForProviderLogMilestone(
   let lastObservation = "";
   let initializationCompleted = false;
   let bspClasspathsUpdated = false;
+  let importFailureLogged = false;
 
   while (Date.now() - startedAt < timeoutMs) {
+    let statusBarText = "";
+    let javaError = false;
     if (provider === "jdtls") {
-      const statusBarText = await readStatusBarText(driver).catch(() => "");
-      if (/Java:\s*Error/i.test(statusBarText)) {
-        const result = {
-          loaded: false,
-          failed: true,
-          failureCategory: "provider-import-failed",
-          logPath,
-          durationMs: Date.now() - startedAt,
-          lastObservation: "java-error",
-          statusBarText,
-        };
-        writeJson(path.join(outputDirectory, "provider-log-readiness.json"), result);
-        return result;
-      }
+      statusBarText = await readStatusBarText(driver).catch(() => "");
+      javaError = /Java:\s*Error/i.test(statusBarText);
     }
     logPath ??= findProviderLog(profile.userDataDirectory, provider);
     if (logPath && fs.existsSync(logPath)) {
@@ -349,6 +359,8 @@ async function waitForProviderLogMilestone(
       bspClasspathsUpdated =
         /Updating classpaths for \d+ projects? \(\d+ build targets?\) using batched BSP calls\./
           .test(content);
+      importFailureLogged =
+        /(?:Failed to import projects?|Initialization failed)/i.test(content);
       if (provider === "intellij" && /\bBUILD FAILED\b/.test(content)) {
         const result = {
           loaded: false,
@@ -393,6 +405,22 @@ async function waitForProviderLogMilestone(
         return result;
       }
     }
+    if (javaError) {
+      const result = {
+        loaded: false,
+        failed: true,
+        failureCategory: "provider-import-failed",
+        logPath,
+        durationMs: Date.now() - startedAt,
+        lastObservation: "java-error",
+        statusBarText,
+        initializationCompleted,
+        bspClasspathsUpdated,
+        importFailureLogged,
+      };
+      writeJson(path.join(outputDirectory, "provider-log-readiness.json"), result);
+      return result;
+    }
     await wait(2000);
   }
 
@@ -405,6 +433,7 @@ async function waitForProviderLogMilestone(
     lastObservation,
     initializationCompleted,
     bspClasspathsUpdated,
+    importFailureLogged,
   };
   writeJson(path.join(outputDirectory, "provider-log-readiness.json"), result);
   return result;
@@ -656,7 +685,8 @@ function uninstallConflictingProviderExtensions(
 function installProvider(
   vscodeExecutablePath,
   extensionId,
-  extensionSource,
+  extensionSources,
+  refreshExtensionIds,
   outputDirectory,
 ) {
   const [cli, ...baseArgs] =
@@ -664,15 +694,17 @@ function installProvider(
   const startedAt = Date.now();
   const replaced = uninstallExtensions(
     vscodeExecutablePath,
-    [extensionId],
+    refreshExtensionIds,
     outputDirectory,
     "extension-reinstall.log",
   );
-  const installOutput = run(
-    cli,
-    [...baseArgs, "--install-extension", extensionSource, "--force"],
-    { capture: true },
-  );
+  const installOutput = extensionSources.map((extensionSource) =>
+    run(
+      cli,
+      [...baseArgs, "--install-extension", extensionSource, "--force"],
+      { capture: true },
+    )
+  ).join("");
   fs.writeFileSync(
     path.join(outputDirectory, "extension-install.log"),
     installOutput,
@@ -686,6 +718,17 @@ function installProvider(
   if (!inventory.some((entry) =>
     entry.toLowerCase().startsWith(`${extensionId.toLowerCase()}@`))) {
     throw new Error(`Installed extension inventory does not contain ${extensionId}.`);
+  }
+  for (const extensionSource of extensionSources) {
+    if (
+      /^[A-Za-z0-9-]+\.[A-Za-z0-9-]+@[^\\/]+$/.test(extensionSource) &&
+      !inventory.some((entry) =>
+        entry.toLowerCase() === extensionSource.toLowerCase())
+    ) {
+      throw new Error(
+        `Installed extension inventory does not contain ${extensionSource}.`,
+      );
+    }
   }
   return {
     inventory,
@@ -902,21 +945,22 @@ async function main() {
     provider,
     outputDirectory,
   );
-  const extensionSource =
+  const extensionSources =
     provider === "intellij" && process.env.T1_INTELLIJ_VSIX
-      ? path.resolve(process.env.T1_INTELLIJ_VSIX)
-      : providerExtensions[provider];
+      ? [path.resolve(process.env.T1_INTELLIJ_VSIX)]
+      : providerExtensionSources[provider];
   if (
     provider === "intellij" &&
     process.env.T1_INTELLIJ_VSIX &&
-    !fs.existsSync(extensionSource)
+    !fs.existsSync(extensionSources[0])
   ) {
-    throw new Error(`IntelliJ VSIX does not exist: ${extensionSource}`);
+    throw new Error(`IntelliJ VSIX does not exist: ${extensionSources[0]}`);
   }
   const install = installProvider(
     vscodeExecutablePath,
     providerExtensions[provider],
-    extensionSource,
+    extensionSources,
+    providerRefreshExtensions[provider],
     outputDirectory,
   );
   const resultPath = path.join(outputDirectory, "result.json");
@@ -1160,7 +1204,8 @@ async function main() {
       sourceSymbol: project.sourceSymbol,
       provider,
       providerExtension: providerExtensions[provider],
-      providerExtensionSource: extensionSource,
+      providerExtensionSource: extensionSources[0],
+      providerExtensionSources: extensionSources,
       removedConflictingExtensions,
       reinstalledProviderExtensions: install.replaced,
       extensionInventory: extensionInventory(profile.extensionsDirectory),

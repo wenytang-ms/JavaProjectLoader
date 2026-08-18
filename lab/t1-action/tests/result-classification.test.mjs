@@ -87,7 +87,10 @@ test("BSP source readiness can complete a missing build marker", () => {
       importStatus: "loaded-finalization-timeout",
       terminalState: null,
       failureCategory: "provider-finalization-timeout",
-      log: { bspClasspathsUpdated: true },
+      log: {
+        initializationCompleted: true,
+        bspClasspathsUpdated: true,
+      },
       ui: null,
     },
     {
@@ -99,6 +102,53 @@ test("BSP source readiness can complete a missing build marker", () => {
   assert.equal(reconciled.importStatus, "ready");
   assert.equal(reconciled.terminalState, "ready");
   assert.equal(reconciled.completionEvidence, "bsp-source-ready");
+});
+
+test("BSP evidence overrides an uncorroborated Java Error state", () => {
+  const reconciled = reconcileProviderLoadResult(
+    {
+      loaded: false,
+      importCompleted: true,
+      importStatus: "import-failed",
+      terminalState: "error",
+      failureCategory: "provider-import-failed",
+      log: {
+        initializationCompleted: true,
+        bspClasspathsUpdated: true,
+        importFailureLogged: false,
+      },
+      ui: null,
+    },
+    {
+      sourceReady: true,
+      diagnosticsStable: true,
+      errorCount: 0,
+    },
+  );
+  assert.equal(reconciled.importStatus, "ready");
+  assert.equal(reconciled.completionEvidence, "bsp-source-ready");
+
+  const loggedFailure = reconcileProviderLoadResult(
+    {
+      loaded: false,
+      importCompleted: true,
+      importStatus: "import-failed",
+      terminalState: "error",
+      failureCategory: "provider-import-failed",
+      log: {
+        initializationCompleted: true,
+        bspClasspathsUpdated: true,
+        importFailureLogged: true,
+      },
+      ui: null,
+    },
+    {
+      sourceReady: true,
+      diagnosticsStable: true,
+      errorCount: 0,
+    },
+  );
+  assert.equal(loggedFailure.importStatus, "import-failed");
 });
 
 test("final result prioritizes provider import state", () => {

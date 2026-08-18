@@ -100,8 +100,15 @@ export function reconcileProviderLoadResult(
   providerLoad,
   { sourceReady, diagnosticsStable, errorCount },
 ) {
+  const reconciliableStatus =
+    providerLoad.importStatus === "loaded-finalization-timeout" ||
+    (
+      providerLoad.importStatus === "import-failed" &&
+      providerLoad.log?.importFailureLogged === false
+    );
   if (
-    providerLoad.importStatus !== "loaded-finalization-timeout" ||
+    !reconciliableStatus ||
+    !providerLoad.log?.initializationCompleted ||
     !providerLoad.log?.bspClasspathsUpdated ||
     !sourceReady ||
     !diagnosticsStable ||
