@@ -30,11 +30,14 @@ const providerExtensions = {
   intellij: "JetBrains.intellij-server",
 };
 const providerExtensionSources = {
-  jdtls: [
-    "vscjava.vscode-java-pack@0.31.1",
-    "redhat.java@1.56.2026073109",
-  ],
+  jdtls: ["vscjava.vscode-java-pack@0.31.1"],
   intellij: ["JetBrains.intellij-server"],
+};
+const redhatJavaExtension = {
+  inventory: "redhat.java@1.56.2026073109",
+  url:
+    "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/" +
+    "redhat/vsextensions/java/1.56.2026073109/vspackage",
 };
 const providerRefreshExtensions = {
   jdtls: [
@@ -78,6 +81,19 @@ function run(command, args, options = {}) {
     );
   }
   return result.stdout ?? "";
+}
+
+async function downloadFile(url, filePath) {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to download ${url}: HTTP ${response.status}.`);
+  }
+  const content = Buffer.from(await response.arrayBuffer());
+  if (content.length === 0) {
+    throw new Error(`Downloaded file is empty: ${url}.`);
+  }
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, content);
 }
 
 function cloneProject(project, checkoutPath) {
@@ -687,6 +703,7 @@ function installProvider(
   extensionId,
   extensionSources,
   refreshExtensionIds,
+  expectedExtensions,
   outputDirectory,
 ) {
   const [cli, ...baseArgs] =
@@ -719,14 +736,11 @@ function installProvider(
     entry.toLowerCase().startsWith(`${extensionId.toLowerCase()}@`))) {
     throw new Error(`Installed extension inventory does not contain ${extensionId}.`);
   }
-  for (const extensionSource of extensionSources) {
-    if (
-      /^[A-Za-z0-9-]+\.[A-Za-z0-9-]+@[^\\/]+$/.test(extensionSource) &&
-      !inventory.some((entry) =>
-        entry.toLowerCase() === extensionSource.toLowerCase())
-    ) {
+  for (const expectedExtension of expectedExtensions) {
+    if (!inventory.some((entry) =>
+      entry.toLowerCase() === expectedExtension.toLowerCase())) {
       throw new Error(
-        `Installed extension inventory does not contain ${extensionSource}.`,
+        `Installed extension inventory does not contain ${expectedExtension}.`,
       );
     }
   }
@@ -945,10 +959,27 @@ async function main() {
     provider,
     outputDirectory,
   );
-  const extensionSources =
-    provider === "intellij" && process.env.T1_INTELLIJ_VSIX
+  let extensionSources;
+  let expectedExtensions = [];
+  if (provider === "jdtls") {
+    const redhatJavaVsix = path.join(
+      process.env.RUNNER_TEMP ?? os.tmpdir(),
+      `${redhatJavaExtension.inventory}.vsix`,
+    );
+    await downloadFile(redhatJavaExtension.url, redhatJavaVsix);
+    extensionSources = [
+      ...providerExtensionSources.jdtls,
+      redhatJavaVsix,
+    ];
+    expectedExtensions = [
+      providerExtensionSources.jdtls[0],
+      redhatJavaExtension.inventory,
+    ];
+  } else {
+    extensionSources = process.env.T1_INTELLIJ_VSIX
       ? [path.resolve(process.env.T1_INTELLIJ_VSIX)]
-      : providerExtensionSources[provider];
+      : providerExtensionSources.intellij;
+  }
   if (
     provider === "intellij" &&
     process.env.T1_INTELLIJ_VSIX &&
@@ -961,6 +992,7 @@ async function main() {
     providerExtensions[provider],
     extensionSources,
     providerRefreshExtensions[provider],
+    expectedExtensions,
     outputDirectory,
   );
   const resultPath = path.join(outputDirectory, "result.json");
