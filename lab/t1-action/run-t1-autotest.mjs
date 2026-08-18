@@ -15,6 +15,11 @@ import {
   discoverProjectEnvironment,
   getProviderSetup,
 } from "./project-environment.mjs";
+import {
+  buildProviderLoadResult,
+  classifyLoadResult,
+  detectProviderTerminalState,
+} from "./result-classification.mjs";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(scriptDir, "..", "..");
@@ -291,7 +296,21 @@ function findProviderLog(userDataDirectory, provider) {
   })?.path ?? null;
 }
 
+async function readStatusBarText(driver) {
+  const page = driver.getPage();
+  const items = page.locator("footer a, footer [role='button']");
+  const values = [];
+  for (let index = 0; index < await items.count(); index += 1) {
+    const value = (await items.nth(index).textContent().catch(() => ""))?.trim();
+    if (value) {
+      values.push(value);
+    }
+  }
+  return values.join(" | ");
+}
+
 async function waitForProviderLogMilestone(
+  driver,
   profile,
   provider,
   timeoutMs,
@@ -302,6 +321,22 @@ async function waitForProviderLogMilestone(
   let lastObservation = "";
 
   while (Date.now() - startedAt < timeoutMs) {
+    if (provider === "jdtls") {
+      const statusBarText = await readStatusBarText(driver).catch(() => "");
+      if (/Java:\s*Error/i.test(statusBarText)) {
+        const result = {
+          loaded: false,
+          failed: true,
+          failureCategory: "provider-import-failed",
+          logPath,
+          durationMs: Date.now() - startedAt,
+          lastObservation: "java-error",
+          statusBarText,
+        };
+        writeJson(path.join(outputDirectory, "provider-log-readiness.json"), result);
+        return result;
+      }
+    }
     logPath ??= findProviderLog(profile.userDataDirectory, provider);
     if (logPath && fs.existsSync(logPath)) {
       const content = fs.readFileSync(logPath, "utf8");
@@ -372,26 +407,14 @@ async function waitForProviderIdle(
     provider === "jdtls"
       ? /Java:\s*(?:Activating|Importing|Building)/i
       : /(?:Indexing(?::\s*Indexing)?|Importing project)/i;
-  const readyPattern =
-    provider === "jdtls" ? /Java:\s*Ready/i : null;
   let stableStartedAt = null;
+  let stableTerminalState = null;
+  let lastTerminalState = null;
   let lastText = null;
   const transitions = [];
-  const readStatusBarText = async () => {
-    const page = driver.getPage();
-    const items = page.locator("footer a, footer [role='button']");
-    const values = [];
-    for (let index = 0; index < await items.count(); index += 1) {
-      const value = (await items.nth(index).textContent().catch(() => ""))?.trim();
-      if (value) {
-        values.push(value);
-      }
-    }
-    return values.join(" | ");
-  };
 
   while (Date.now() - startedAt < timeoutMs) {
-    const text = (await readStatusBarText()).replace(/\s+/g, " ").trim();
+    const text = (await readStatusBarText(driver)).replace(/\s+/g, " ").trim();
     if (text !== lastText) {
       transitions.push({
         at: new Date().toISOString(),
@@ -400,12 +423,18 @@ async function waitForProviderIdle(
       lastText = text;
     }
     const busy = busyPattern.test(text);
-    const ready = readyPattern ? readyPattern.test(text) : !busy;
-    if (!busy && ready) {
-      stableStartedAt ??= Date.now();
+    const terminalState = detectProviderTerminalState(provider, text, busy);
+    lastTerminalState = terminalState;
+    if (terminalState) {
+      if (stableTerminalState !== terminalState) {
+        stableTerminalState = terminalState;
+        stableStartedAt = Date.now();
+      }
       if (Date.now() - stableStartedAt >= stableMs) {
         const result = {
           idle: true,
+          settled: true,
+          terminalState,
           durationMs: Date.now() - startedAt,
           stableMs,
           finalStatusBarText: text,
@@ -416,12 +445,15 @@ async function waitForProviderIdle(
       }
     } else {
       stableStartedAt = null;
+      stableTerminalState = null;
     }
     await wait(1000);
   }
 
   const result = {
     idle: false,
+    settled: false,
+    terminalState: lastTerminalState,
     durationMs: Date.now() - startedAt,
     stableMs,
     finalStatusBarText: lastText ?? "",
@@ -439,12 +471,7 @@ async function waitForProviderIdleAfterLog(
   log,
 ) {
   if (!log.loaded) {
-    return {
-      loaded: false,
-      failureCategory: log.failureCategory ?? "provider-log-timeout",
-      log,
-      ui: null,
-    };
+    return buildProviderLoadResult(log, null);
   }
   const ui = await waitForProviderIdle(
     driver,
@@ -452,12 +479,7 @@ async function waitForProviderIdleAfterLog(
     Math.max(0, deadline - Date.now()),
     outputDirectory,
   );
-  return {
-    loaded: ui.idle,
-    failureCategory: ui.idle ? "" : "provider-ui-timeout",
-    log,
-    ui,
-  };
+  return buildProviderLoadResult(log, ui);
 }
 
 async function captureStableDiagnostics(
@@ -526,8 +548,12 @@ function appendGithubSummary(result) {
       "",
       "| Result | Load successful | Errors | Warnings | Duration |",
       "|---|---:|---:|---:|---:|",
-      `| ${result.status} | ${result.loadSuccessful ? "yes" : "no"} | ` +
+      `| ${result.loadStatus ?? result.status} | ` +
+        `${result.loadSuccessful ? "yes" : "no"} | ` +
         `${result.errorCount} | ${result.warningCount} | ${durationSeconds}s |`,
+      "",
+      `Provider import: \`${result.providerImportStatus ?? "unknown"}\`; ` +
+        `terminal state: \`${result.providerTerminalState ?? "none"}\`.`,
       "",
     ].join("\n"),
   );
@@ -879,8 +905,12 @@ async function main() {
     outputDirectory,
   );
   const resultPath = path.join(outputDirectory, "result.json");
+  const sourceResultPath = path.join(
+    outputDirectory,
+    "source-readiness-result.json",
+  );
   const processStartedAt = new Date();
-  process.env.IMPORT_RESULT = resultPath;
+  process.env.IMPORT_RESULT = sourceResultPath;
   process.env.IMPORT_CASE_JSON = JSON.stringify({
     id: project.id,
     relativeFile: runtimeRelativeFile,
@@ -930,15 +960,10 @@ async function main() {
       project.timeoutSeconds * 1_000 +
       120_000;
     const providerLog = await waitForProviderLogMilestone(
+      driver,
       profile,
       provider,
       Math.max(0, deadline - Date.now()),
-      outputDirectory,
-    );
-    const sourceResult = await waitForT1Result(
-      driver,
-      resultPath,
-      deadline,
       outputDirectory,
     );
     const providerLoad = await waitForProviderIdleAfterLog(
@@ -948,6 +973,25 @@ async function main() {
       outputDirectory,
       providerLog,
     );
+    const sourceResult = fs.existsSync(sourceResultPath)
+      ? JSON.parse(fs.readFileSync(sourceResultPath, "utf8"))
+      : providerLoad.importStatus === "ready"
+        ? await waitForT1Result(
+            driver,
+            sourceResultPath,
+            deadline,
+            outputDirectory,
+          )
+        : {
+            schemaVersion: 1,
+            project: project.id,
+            product: provider,
+            status: "failure",
+            sourceReadyAt: null,
+            sourceAttempts: 0,
+            failureCategory: providerLoad.failureCategory,
+            error: null,
+          };
     const diagnosticFiles = [...new Set([
       runtimeRelativeFile,
       ...(project.diagnosticProbeFiles ?? []),
@@ -964,40 +1008,28 @@ async function main() {
       !sourceResult.error;
     const errorCount = Number(diagnostics.counts?.error ?? 0);
     const warningCount = Number(diagnostics.counts?.warning ?? 0);
-    const successful =
-      sourceReady &&
-      providerLoad.loaded &&
-      diagnostics.stable &&
-      errorCount === 0;
-    const failureCategory = successful
-      ? ""
-      : !sourceReady
-        ? sourceResult.failureCategory || "source-readiness-failed"
-        : !providerLoad.loaded
-          ? providerLoad.failureCategory || "provider-load-failed"
-          : !diagnostics.stable
-            ? "diagnostics-unstable"
-            : "diagnostics-errors";
+    const classification = classifyLoadResult({
+      sourceReady,
+      sourceFailureCategory: sourceResult.failureCategory,
+      providerLoad,
+      diagnosticsStable: diagnostics.stable,
+      errorCount,
+    });
+    const successful = classification.successful;
     const completedAt = new Date();
     finalResult = {
       ...sourceResult,
+      operatingSystem: process.env.T1_OPERATING_SYSTEM ?? process.platform,
       status: successful ? "success" : "failure",
       sourceReady,
       providerLoaded: providerLoad.loaded,
+      providerImportCompleted: providerLoad.importCompleted,
+      providerImportStatus: providerLoad.importStatus,
+      providerTerminalState: providerLoad.terminalState,
       loadSuccessful: successful,
-      loadStatus: successful
-        ? "success"
-        : providerLoad.loaded
-          ? "loaded-with-errors"
-          : "not-loaded",
-      failureCategory,
-      failedPhase: successful
-        ? ""
-        : !sourceReady
-          ? "source-index"
-          : !providerLoad.loaded
-            ? "provider-load"
-            : "diagnostics",
+      loadStatus: classification.loadStatus,
+      failureCategory: classification.failureCategory,
+      failedPhase: classification.failedPhase,
       errorCount,
       warningCount,
       diagnosticScope: diagnostics.scope ?? "probe-files",
@@ -1030,9 +1062,11 @@ async function main() {
       totalDurationMs: completedAt.getTime() - processStartedAt.getTime(),
       error: successful
         ? null
-        : sourceResult.error ||
-          diagnostics.error ||
-          `Load result failed: ${failureCategory}`,
+        : diagnostics.error ||
+          (classification.failedPhase === "source-index"
+            ? sourceResult.error
+            : null) ||
+          `Load result failed: ${classification.failureCategory}`,
     };
     writeJson(resultPath, finalResult);
     await saveScreenshot(driver, outputDirectory, "07-load-result");
@@ -1040,6 +1074,9 @@ async function main() {
       provider,
       status: finalResult.status,
       providerLoaded: finalResult.providerLoaded,
+      providerImportStatus: finalResult.providerImportStatus,
+      providerTerminalState: finalResult.providerTerminalState,
+      loadStatus: finalResult.loadStatus,
       errorCount,
       warningCount,
       totalDurationMs: finalResult.totalDurationMs,
@@ -1062,17 +1099,23 @@ async function main() {
     });
     const existingResult = fs.existsSync(resultPath)
       ? JSON.parse(fs.readFileSync(resultPath, "utf8"))
-      : {
-          schemaVersion: 1,
-          project: project.id,
-          product: provider,
-        };
+      : fs.existsSync(sourceResultPath)
+        ? JSON.parse(fs.readFileSync(sourceResultPath, "utf8"))
+        : {
+            schemaVersion: 1,
+            project: project.id,
+            product: provider,
+          };
     const completedAt = new Date();
     finalResult = {
       ...existingResult,
       status: "failure",
+      operatingSystem: process.env.T1_OPERATING_SYSTEM ?? process.platform,
       sourceReady: Boolean(existingResult.sourceReadyAt),
       providerLoaded: false,
+      providerImportCompleted: false,
+      providerImportStatus: "not-loaded",
+      providerTerminalState: null,
       loadSuccessful: false,
       loadStatus: "not-loaded",
       failureCategory: "runner-error",
@@ -1148,7 +1191,11 @@ main().catch((error) => {
         project: argument("--project", process.env.T1_PROJECT) ?? null,
         product: argument("--provider", process.env.T1_PROVIDER) ?? null,
         status: "failure",
+        operatingSystem: process.env.T1_OPERATING_SYSTEM ?? process.platform,
         providerLoaded: false,
+        providerImportCompleted: false,
+        providerImportStatus: "not-loaded",
+        providerTerminalState: null,
         loadSuccessful: false,
         loadStatus: "not-loaded",
         failureCategory: "runner-error",

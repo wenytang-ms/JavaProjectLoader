@@ -67,6 +67,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       T1_OUTPUT_DIR: ${{ github.workspace }}/lab/t1-action/results/${{ matrix.project.id }}/${{ matrix.provider }}/${{ matrix.os }}
+      T1_OPERATING_SYSTEM: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
 
@@ -165,3 +166,42 @@ jobs:
           include-hidden-files: true
           compression-level: 6
           retention-days: 14
+
+  aggregate:
+    name: Aggregate T1 conclusion
+    if: ${{ always() && needs.prepare.result == 'success' }}
+    needs:
+      - prepare
+      - t1
+    runs-on: ubuntu-latest
+    env:
+      T1_MATRIX_JSON: ${{ needs.prepare.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Download T1 evidence
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          pattern: t1-*
+          path: lab/t1-action/aggregate-input
+          merge-multiple: false
+
+      - name: Build aggregate conclusion
+        run: |
+          node lab/t1-action/summarize-results.mjs \
+            --results lab/t1-action/aggregate-input \
+            --output lab/t1-action/aggregate-output \
+            --summary "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload aggregate conclusion
+        uses: actions/upload-artifact@v4
+        with:
+          name: t1-aggregate-conclusion
+          path: lab/t1-action/aggregate-output
+          if-no-files-found: error
+          retention-days: 30
