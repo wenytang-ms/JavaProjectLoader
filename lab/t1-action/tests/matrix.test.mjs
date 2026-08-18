@@ -34,7 +34,7 @@ test("provider-aware matrix carries distinct Algorithms and RxJava JDK roles", (
   const entries = createMatrixEntries(
     selected,
     ["jdtls", "intellij"],
-    ["ubuntu-latest"],
+    ["windows-latest"],
   );
   assert.equal(entries.length, 4);
 
@@ -59,7 +59,7 @@ test("provider-aware matrix carries distinct Algorithms and RxJava JDK roles", (
   assert.equal(algorithmsIntellij.environment.runtimeJavaSource, "bundled");
 });
 
-test("CSV-derived configured case set expands to one hundred twenty jobs", () => {
+test("CSV-derived configured case set expands to eighty jobs", () => {
   const expectedIds = [
     "caffeine",
     "commons-codec",
@@ -100,9 +100,9 @@ test("CSV-derived configured case set expands to one hundred twenty jobs", () =>
   const entries = createMatrixEntries(
     configuredProjects,
     ["jdtls", "intellij"],
-    ["ubuntu-latest", "windows-latest", "macos-latest"],
+    ["windows-latest", "macos-latest"],
   );
-  assert.equal(entries.length, 120);
+  assert.equal(entries.length, 80);
 });
 
 test("Spring Boot declares stable diagnostic probe files", () => {

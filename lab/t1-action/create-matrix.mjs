@@ -182,7 +182,7 @@ function main() {
   const providers = selectValues(requestedProvider, ["jdtls", "intellij"], "provider");
   const operatingSystems = selectValues(
     requestedOs,
-    ["ubuntu-latest", "windows-latest", "macos-latest"],
+    ["windows-latest", "macos-latest"],
     "OS",
   );
 
