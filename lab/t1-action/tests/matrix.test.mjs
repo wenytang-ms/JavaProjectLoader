@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   createMatrixEntries,
+  excludeMatrixEntries,
   loadProjectEnvironments,
   loadProjects,
 } from "../create-matrix.mjs";
@@ -45,6 +46,41 @@ test("the complete corpus represents four hundred provider cases", () => {
     ["windows-latest", "macos-latest"],
   );
   assert.equal(entries.length, 400);
+});
+
+test("case exclusions support the forty-eight-case IntelliJ rerun", () => {
+  const projects = loadProjects().filter((project) => project.batch === 1);
+  const entries = createMatrixEntries(
+    projects,
+    ["intellij"],
+    ["windows-latest", "macos-latest"],
+  );
+  const filtered = excludeMatrixEntries(
+    entries,
+    "zxing:intellij:macos-latest,dbeaver:intellij:macos-latest",
+  );
+  assert.equal(entries.length, 50);
+  assert.equal(filtered.length, 48);
+  assert.equal(
+    filtered.some(
+      (entry) =>
+        entry.project.id === "zxing" &&
+        entry.os === "macos-latest",
+    ),
+    false,
+  );
+});
+
+test("case exclusions reject typos instead of silently changing coverage", () => {
+  const entries = createMatrixEntries(
+    loadProjects().filter((project) => project.batch === 1),
+    ["intellij"],
+    ["windows-latest"],
+  );
+  assert.throws(
+    () => excludeMatrixEntries(entries, "missing:intellij:windows-latest"),
+    /Unknown excluded case/,
+  );
 });
 
 test("provider-aware matrix preserves project and runtime JDK roles", () => {

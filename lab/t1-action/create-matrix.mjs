@@ -139,6 +139,31 @@ export function createMatrixEntries(projects, providers, operatingSystems) {
   );
 }
 
+export function excludeMatrixEntries(entries, requestedExclusions = "") {
+  const exclusions = requestedExclusions
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (exclusions.length === 0) {
+    return entries;
+  }
+  const available = new Set(
+    entries.map(
+      (entry) => `${entry.project.id}:${entry.provider}:${entry.os}`,
+    ),
+  );
+  for (const exclusion of exclusions) {
+    if (!available.has(exclusion)) {
+      throw new Error(`Unknown excluded case: ${exclusion}`);
+    }
+  }
+  const excluded = new Set(exclusions);
+  return entries.filter(
+    (entry) =>
+      !excluded.has(`${entry.project.id}:${entry.provider}:${entry.os}`),
+  );
+}
+
 function argument(name, fallback) {
   const index = process.argv.indexOf(name);
   return index >= 0 ? process.argv[index + 1] : fallback;
@@ -169,6 +194,7 @@ function main() {
   const requestedProvider = argument("--provider", "all");
   const requestedOs = argument("--os", "all");
   const requestedBatch = Number(argument("--batch", "1"));
+  const requestedExclusions = argument("--exclude", "");
   const outputFile = argument("--github-output", process.env.GITHUB_OUTPUT);
   const summaryFile = argument("--summary", process.env.GITHUB_STEP_SUMMARY);
 
@@ -205,12 +231,17 @@ function main() {
   appendOutput(outputFile, "providers", providers);
   appendOutput(outputFile, "operating_systems", operatingSystems);
   appendOutput(outputFile, "batch", requestedBatch);
+  const allEntries = createMatrixEntries(
+    selectedProjects,
+    providers,
+    operatingSystems,
+  );
+  const matrixEntries = excludeMatrixEntries(
+    allEntries,
+    requestedExclusions,
+  );
   appendOutput(outputFile, "matrix", {
-    include: createMatrixEntries(
-      selectedProjects,
-      providers,
-      operatingSystems,
-    ),
+    include: matrixEntries,
   });
 
   if (summaryFile) {
@@ -219,6 +250,7 @@ function main() {
       "## T1 project selection",
       "",
       `Selected batch ${requestedBatch}: ${matrixProjects.length} project(s), ${providers.length} provider(s), and ${operatingSystems.length} OS image(s).`,
+      `Generated ${matrixEntries.length} case(s); excluded ${allEntries.length - matrixEntries.length}.`,
       "",
       "Projects without Java source are retained in `lab/t1-projects.json` but excluded from the default matrix:",
       ...notApplicable.map((project) => `- \`${project.id}\`: ${project.reason}`),

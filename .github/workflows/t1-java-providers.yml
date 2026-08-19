@@ -36,6 +36,11 @@ on:
           - all
           - windows-latest
           - macos-latest
+      exclude_cases:
+        description: "Comma-separated project:provider:os cases to omit"
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -64,6 +69,7 @@ jobs:
             --batch "${{ inputs.batch }}" \
             --provider "${{ inputs.provider }}" \
             --os "${{ inputs.operating_system }}" \
+            --exclude "${{ inputs.exclude_cases }}" \
             --github-output "$GITHUB_OUTPUT" \
             --summary "$GITHUB_STEP_SUMMARY"
 
