@@ -786,6 +786,32 @@ function installProvider(
   };
 }
 
+function isMissingPathError(error) {
+  return error && ["ENOENT", "ENOTDIR"].includes(error.code);
+}
+
+export function statIfPresent(filePath, fileSystem = fs) {
+  try {
+    return fileSystem.statSync(filePath);
+  } catch (error) {
+    if (isMissingPathError(error)) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+function readDirectoryIfPresent(directoryPath) {
+  try {
+    return fs.readdirSync(directoryPath, { withFileTypes: true });
+  } catch (error) {
+    if (isMissingPathError(error)) {
+      return [];
+    }
+    throw error;
+  }
+}
+
 function listFiles(rootPath) {
   const files = [];
   if (!rootPath || !fs.existsSync(rootPath)) {
@@ -794,7 +820,7 @@ function listFiles(rootPath) {
   const pending = [rootPath];
   while (pending.length > 0) {
     const current = pending.pop();
-    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+    for (const entry of readDirectoryIfPresent(current)) {
       const fullPath = path.join(current, entry.name);
       if (fullPath.includes(`${path.sep}agent-host${path.sep}`)) {
         continue;
@@ -802,7 +828,10 @@ function listFiles(rootPath) {
       if (entry.isDirectory()) {
         pending.push(fullPath);
       } else if (entry.isFile()) {
-        const stats = fs.statSync(fullPath);
+        const stats = statIfPresent(fullPath);
+        if (!stats?.isFile()) {
+          continue;
+        }
         files.push({
           path: fullPath,
           bytes: stats.size,
@@ -815,10 +844,11 @@ function listFiles(rootPath) {
 }
 
 function copyEvidenceFile(source, target, copied, skipped) {
-  if (!fs.existsSync(source) || !fs.statSync(source).isFile()) {
+  const stats = statIfPresent(source);
+  if (!stats?.isFile()) {
     return;
   }
-  const bytes = fs.statSync(source).size;
+  const bytes = stats.size;
   if (bytes > 10 * 1024 * 1024) {
     skipped.push({ source, reason: "file-size-limit", bytes });
     return;

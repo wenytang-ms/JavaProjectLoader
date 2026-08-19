@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   clickWebviewElement,
   isTransientWebviewError,
+  statIfPresent,
 } from "../run-t1-autotest.mjs";
 
 test("IntelliJ onboarding retries detached and replaced webview elements", async () => {
@@ -32,5 +33,32 @@ test("IntelliJ onboarding still surfaces non-transient click failures", async ()
   await assert.rejects(
     clickWebviewElement(locator),
     /EULA control is disabled/,
+  );
+});
+
+test("provider log scans ignore files removed during stat", () => {
+  const missing = new Error("temporary file disappeared");
+  missing.code = "ENOENT";
+  assert.equal(
+    statIfPresent("staged.tmp", {
+      statSync: () => {
+        throw missing;
+      },
+    }),
+    null,
+  );
+});
+
+test("provider log scans still surface non-race filesystem errors", () => {
+  const denied = new Error("permission denied");
+  denied.code = "EACCES";
+  assert.throws(
+    () =>
+      statIfPresent("provider.log", {
+        statSync: () => {
+          throw denied;
+        },
+      }),
+    /permission denied/,
   );
 });
