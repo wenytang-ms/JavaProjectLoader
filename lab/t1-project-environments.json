@@ -4894,8 +4894,9 @@
         "intellijResult": null
       },
       "buildTool": "gradle",
-      "buildToolVersion": "auto",
-      "buildToolVersionSource": "No Gradle wrapper version was detected; the provider selects its repository default.",
+      "buildToolVersion": "8.13",
+      "buildToolVersionSource": "Pinned by the T1 harness to match the io.freefair.aspectj 8.13 plugin used by the project.",
+      "bootstrapGradleVersion": "8.13",
       "selectionReason": "Selected in CSV order from repositories active within six months; the pinned revision contains a usable Java probe and supported build layout.",
       "buildDescriptors": {
         "maven": [],
@@ -5796,6 +5797,7 @@
       "buildTool": "gradle",
       "buildToolVersion": "8.14.3",
       "buildToolVersionSource": "gradle/wrapper/gradle-wrapper.properties",
+      "goVersion": "1.24",
       "selectionReason": "Selected in CSV order from repositories active within six months; the pinned revision contains a usable Java probe and supported build layout.",
       "buildDescriptors": {
         "maven": [],
@@ -6767,6 +6769,10 @@
       },
       "toolchainJava": {
         "distribution": "zulu",
+        "distributionsByOs": {
+          "windows-latest": "temurin",
+          "macos-latest": "zulu"
+        },
         "versions": [
           "8",
           "11",

@@ -143,6 +143,10 @@ test("import repair contracts expose required JDKs and toolchains", () => {
     byProject.get("btrace").environment.toolchainJavaVersions,
     "8\n11\n17",
   );
+  assert.equal(
+    byProject.get("btrace").environment.toolchainJavaDistribution,
+    "temurin",
+  );
   assert.equal(byProject.get("btrace").environment.projectJavaVersion, "24");
   assert.equal(
     byProject.get("junit-framework").environment.projectJavaVersion,
@@ -157,4 +161,29 @@ test("import repair contracts expose required JDKs and toolchains", () => {
     "graalvm",
   );
   assert.equal(byProject.get("okhttp").environment.buildTool, "gradle");
+});
+
+test("OS-specific import prerequisites reach the matrix", () => {
+  const projects = loadProjects().filter((project) =>
+    ["beam", "btrace", "supertokens-core"].includes(project.id),
+  );
+  const entries = createMatrixEntries(
+    projects,
+    ["intellij"],
+    ["windows-latest", "macos-latest"],
+  );
+  const find = (project, os) => entries.find(
+    (entry) => entry.project.id === project && entry.os === os,
+  );
+
+  assert.equal(find("beam", "windows-latest").environment.goVersion, "1.24");
+  assert.equal(
+    find("btrace", "macos-latest").environment.toolchainJavaDistribution,
+    "zulu",
+  );
+  assert.equal(
+    find("supertokens-core", "windows-latest").environment
+      .bootstrapGradleVersion,
+    "8.13",
+  );
 });

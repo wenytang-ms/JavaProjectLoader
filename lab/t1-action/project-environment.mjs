@@ -154,6 +154,21 @@ export function validateProjectSetup(project) {
         `${project.id}.projectSetup.toolchainJava.versions`,
       );
     }
+    for (const [operatingSystem, distribution] of Object.entries(
+      setup.toolchainJava.distributionsByOs ?? {},
+    )) {
+      if (!["windows-latest", "macos-latest"].includes(operatingSystem)) {
+        throw new Error(
+          `${project.id}.projectSetup.toolchainJava has unknown OS: ` +
+          operatingSystem,
+        );
+      }
+      requireString(
+        distribution,
+        `${project.id}.projectSetup.toolchainJava.distributionsByOs.` +
+        operatingSystem,
+      );
+    }
   }
 
   if (
@@ -164,6 +179,22 @@ export function validateProjectSetup(project) {
       `${project.id}.projectSetup.gradleToolchains.` +
       `restrictToConfiguredJdks must be boolean.`,
     );
+  }
+
+  if (setup.goVersion) {
+    requireString(setup.goVersion, `${project.id}.projectSetup.goVersion`);
+  }
+
+  if (setup.bootstrapGradleVersion) {
+    requireString(
+      setup.bootstrapGradleVersion,
+      `${project.id}.projectSetup.bootstrapGradleVersion`,
+    );
+    if (setup.buildTool !== "gradle") {
+      throw new Error(
+        `${project.id}.projectSetup.bootstrapGradleVersion requires Gradle.`,
+      );
+    }
   }
 
   if (setup.checkout) {
@@ -435,6 +466,8 @@ export function discoverProjectEnvironment(
       toolchainJava: setup.toolchainJava ?? null,
       gradleToolchains: setup.gradleToolchains ?? null,
       checkout: setup.checkout ?? null,
+      goVersion: setup.goVersion ?? null,
+      bootstrapGradleVersion: setup.bootstrapGradleVersion ?? null,
       preferredBuildTool: setup.buildTool,
       buildToolVersion: setup.buildToolVersion,
       buildToolVersionSource: setup.buildToolVersionSource,
@@ -735,6 +768,8 @@ export function provisionProjectEnvironment(
       toolchainJava: setup.toolchainJava ?? null,
       gradleToolchains: setup.gradleToolchains ?? null,
       checkout: setup.checkout ?? null,
+      goVersion: setup.goVersion ?? null,
+      bootstrapGradleVersion: setup.bootstrapGradleVersion ?? null,
       buildTool: setup.buildTool,
       buildToolVersion: setup.buildToolVersion,
       androidPackages: setup.androidSdk

@@ -179,6 +179,21 @@ function cloneProject(project, checkoutPath) {
     }
   }
 
+  if (project.projectSetup?.bootstrapGradleVersion) {
+    run(
+      "gradle",
+      [
+        "wrapper",
+        "--gradle-version",
+        project.projectSetup.bootstrapGradleVersion,
+        "--distribution-type",
+        "bin",
+        "--no-daemon",
+      ],
+      { cwd: checkoutPath },
+    );
+  }
+
   return {
     submodules: checkout.submodules === true,
     siblingProjects,
@@ -231,6 +246,28 @@ export function configureGradleToolchainEnvironment(
     homes: configuredHomes,
     gradleOpts: environment.GRADLE_OPTS,
   };
+}
+
+export function writeGradleToolchainProperties(
+  checkoutPath,
+  toolchainEnvironment,
+) {
+  if (!toolchainEnvironment) {
+    return null;
+  }
+  const propertiesPath = path.join(checkoutPath, "gradle.properties");
+  const normalizedHomes = toolchainEnvironment.homes.map((home) =>
+    home.split(path.sep).join("/"),
+  );
+  const content = [
+    "",
+    `org.gradle.java.installations.paths=${normalizedHomes.join(",")}`,
+    "org.gradle.java.installations.auto-detect=false",
+    "org.gradle.java.installations.auto-download=false",
+    "",
+  ].join("\n");
+  fs.appendFileSync(propertiesPath, content);
+  return propertiesPath;
 }
 
 function createSyntheticMavenWorkspace(project, checkoutPath, workspacePath) {
@@ -1102,11 +1139,20 @@ async function main() {
     process.env.RUNNER_TEMP ?? os.tmpdir(),
     `java-provider-t1-${project.id}-${provider}-materialized`,
   );
+  if (project.projectSetup && process.env.T1_PROJECT_JAVA_HOME) {
+    process.env.JAVA_HOME = process.env.T1_PROJECT_JAVA_HOME;
+  }
+  const gradleToolchainEnvironment = configureGradleToolchainEnvironment(
+    project,
+    process.env,
+  );
   const checkoutSetup = cloneProject(project, checkoutPath);
+  writeGradleToolchainProperties(checkoutPath, gradleToolchainEnvironment);
   writeJson(path.join(outputDirectory, "checkout-setup.json"), checkoutSetup);
   const workspacePath = project.syntheticMavenTargetFile
     ? syntheticWorkspacePath
-    : checkoutSetup.requiresMaterializedWorkspace
+    : checkoutSetup.requiresMaterializedWorkspace ||
+        gradleToolchainEnvironment
       ? materializeWorkspace(checkoutPath, materializedWorkspacePath)
     : checkoutPath;
   const runtimeRelativeFile = project.syntheticMavenTargetFile
@@ -1141,13 +1187,6 @@ async function main() {
     );
   }
 
-  if (project.projectSetup && process.env.T1_PROJECT_JAVA_HOME) {
-    process.env.JAVA_HOME = process.env.T1_PROJECT_JAVA_HOME;
-  }
-  const gradleToolchainEnvironment = configureGradleToolchainEnvironment(
-    project,
-    process.env,
-  );
   writeJson(
     path.join(outputDirectory, "gradle-toolchain-environment.json"),
     gradleToolchainEnvironment,

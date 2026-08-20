@@ -13,6 +13,7 @@ import {
   configureGradleToolchainEnvironment,
   gradleSiblingProjectSettings,
   materializeWorkspace,
+  writeGradleToolchainProperties,
 } from "../run-t1-autotest.mjs";
 
 function writeFixture(root, relativePath, content = "fixture\n") {
@@ -172,4 +173,20 @@ test("Gradle toolchains can be restricted to configured JDK homes", () => {
     environment.GRADLE_OPTS,
     /org\.gradle\.java\.installations\.auto-download=false/,
   );
+
+  const checkout = fs.mkdtempSync(path.join(os.tmpdir(), "t1-toolchains-"));
+  try {
+    const propertiesPath = writeGradleToolchainProperties(checkout, result);
+    const properties = fs.readFileSync(propertiesPath, "utf8");
+    assert.match(
+      properties,
+      /org\.gradle\.java\.installations\.paths=C:\/jdks\/graalvm-25/,
+    );
+    assert.match(
+      properties,
+      /org\.gradle\.java\.installations\.auto-detect=false/,
+    );
+  } finally {
+    fs.rmSync(checkout, { recursive: true, force: true });
+  }
 });

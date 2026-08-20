@@ -94,7 +94,7 @@ export function loadProjects() {
   return projects;
 }
 
-function matrixEnvironment(project, provider) {
+function matrixEnvironment(project, provider, os) {
   const providerSetup = project.projectSetup?.providers?.[provider];
   if (!providerSetup) {
     return {
@@ -109,8 +109,11 @@ function matrixEnvironment(project, provider) {
       toolchainJavaVersions: "",
       toolchainJavaDistribution: "",
       buildTool: "",
+      goVersion: "",
+      bootstrapGradleVersion: "",
     };
   }
+  const toolchainJava = project.projectSetup.toolchainJava;
 
   const environment = {
     configured: true,
@@ -120,10 +123,15 @@ function matrixEnvironment(project, provider) {
     runtimeJavaVersion: providerSetup.runtimeJava.version ?? "",
     runtimeJavaDistribution: providerSetup.runtimeJava.distribution ?? "",
     toolchainJavaVersions:
-      project.projectSetup.toolchainJava?.versions?.join("\n") ?? "",
+      toolchainJava?.versions?.join("\n") ?? "",
     toolchainJavaDistribution:
-      project.projectSetup.toolchainJava?.distribution ?? "",
+      toolchainJava?.distributionsByOs?.[os] ??
+      toolchainJava?.distribution ??
+      "",
     buildTool: project.projectSetup.buildTool,
+    goVersion: project.projectSetup.goVersion ?? "",
+    bootstrapGradleVersion:
+      project.projectSetup.bootstrapGradleVersion ?? "",
   };
   if (project.projectSetup.androidSdk) {
     environment.requiresAndroidSdk = true;
@@ -141,7 +149,7 @@ export function createMatrixEntries(projects, providers, operatingSystems) {
         },
         provider,
         os,
-        environment: matrixEnvironment(project, provider),
+        environment: matrixEnvironment(project, provider, os),
       })),
     ),
   );
