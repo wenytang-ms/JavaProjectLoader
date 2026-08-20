@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { pathToFileURL } from "node:url";
 import { loadProjects } from "../create-matrix.mjs";
 import {
   createProjectSettings,
@@ -92,6 +93,32 @@ test("Gradle discovery verifies the pinned wrapper and JDT LS settings", () => {
   } finally {
     fs.rmSync(fixture, { recursive: true, force: true });
   }
+});
+
+test("IntelliJ Maven import receives the configured project JDK", () => {
+  const project = loadProjects().find(
+    (entry) => entry.id === "java-design-patterns",
+  );
+  const workspace = path.join(os.tmpdir(), "t1-intellij-maven-workspace");
+  const projectJavaHome = path.join(os.tmpdir(), "jdks", "21");
+  const settings = createProjectSettings(
+    project,
+    "intellij",
+    {},
+    { T1_PROJECT_JAVA_HOME: projectJavaHome },
+    workspace,
+  );
+
+  assert.deepEqual(settings["intellij.projects"], [
+    {
+      type: "maven",
+      path: pathToFileURL(workspace).href,
+      env: {
+        JAVA_HOME: projectJavaHome,
+      },
+      "java-home": projectJavaHome,
+    },
+  ]);
 });
 
 test("an unmanaged case validates its generated Maven descriptor", () => {

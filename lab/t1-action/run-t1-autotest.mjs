@@ -1423,6 +1423,7 @@ async function main() {
       provider,
       projectEnvironment,
       process.env,
+      workspacePath,
     ),
   };
   writeJson(

@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const supportedBuildTools = new Set(["gradle", "maven"]);
 
@@ -543,6 +543,7 @@ export function createProjectSettings(
   provider,
   discovery,
   environment = process.env,
+  workspacePath = null,
 ) {
   const setup = project.projectSetup;
   if (!setup) {
@@ -551,7 +552,21 @@ export function createProjectSettings(
 
   const providerSetup = getProviderSetup(project, provider);
   if (provider !== "jdtls") {
-    return { ...providerSetup.vscodeSettings };
+    const settings = { ...providerSetup.vscodeSettings };
+    const projectJavaHome = environment.T1_PROJECT_JAVA_HOME;
+    if (setup.buildTool === "maven" && projectJavaHome && workspacePath) {
+      settings["intellij.projects"] = [
+        {
+          type: "maven",
+          path: pathToFileURL(workspacePath).href,
+          env: {
+            JAVA_HOME: projectJavaHome,
+          },
+          "java-home": projectJavaHome,
+        },
+      ];
+    }
+    return settings;
   }
   const settings = {
     "java.project.importOnFirstTimeStartup": "automatic",
