@@ -1,12 +1,20 @@
+export function isProviderBusy(provider, statusBarText) {
+  const pattern =
+    provider === "jdtls"
+      ? /Java:\s*(?:Activating|Importing|Building|Refreshing|Searching)/i
+      : /(?:Indexing|Importing project|Just a few more moments)/i;
+  return pattern.test(statusBarText);
+}
+
 export function detectProviderTerminalState(provider, statusBarText, busy) {
   if (busy) {
     return null;
   }
-  if (provider !== "jdtls") {
-    return "ready";
+  if (provider === "jdtls") {
+    const match = statusBarText.match(/Java:\s*(Ready|Warning|Error)/i);
+    return match ? match[1].toLowerCase() : null;
   }
-  const match = statusBarText.match(/Java:\s*(Ready|Warning|Error)/i);
-  return match ? match[1].toLowerCase() : null;
+  return /Java and Kotlin/i.test(statusBarText) ? "ready" : null;
 }
 
 export function buildProviderLoadResult(log, ui) {
@@ -43,7 +51,8 @@ export function buildProviderLoadResult(log, ui) {
   }
 
   if (!ui?.settled || !ui.terminalState) {
-    const indexing = /(?:Indexing|Java:\s*Searching)/i.test(
+    const indexing =
+      /(?:Indexing|Importing project|Just a few more moments|Java:\s*(?:Searching|Refreshing|Building|Importing))/i.test(
       ui?.finalStatusBarText ?? "",
     );
     return {
@@ -93,38 +102,6 @@ export function buildProviderLoadResult(log, ui) {
     failureCategory: "",
     log,
     ui,
-  };
-}
-
-export function reconcileProviderLoadResult(
-  providerLoad,
-  { sourceReady, diagnosticsStable, errorCount },
-) {
-  const reconciliableStatus =
-    providerLoad.importStatus === "loaded-finalization-timeout" ||
-    (
-      providerLoad.importStatus === "import-failed" &&
-      providerLoad.log?.importFailureLogged === false
-    );
-  if (
-    !reconciliableStatus ||
-    !providerLoad.log?.initializationCompleted ||
-    !providerLoad.log?.bspClasspathsUpdated ||
-    !sourceReady ||
-    !diagnosticsStable ||
-    errorCount > 0
-  ) {
-    return providerLoad;
-  }
-
-  return {
-    ...providerLoad,
-    loaded: true,
-    importCompleted: true,
-    importStatus: "ready",
-    terminalState: "ready",
-    failureCategory: "",
-    completionEvidence: "bsp-source-ready",
   };
 }
 

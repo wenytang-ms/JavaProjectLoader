@@ -19,8 +19,9 @@ import {
   buildProviderLoadResult,
   classifyLoadResult,
   detectProviderTerminalState,
-  reconcileProviderLoadResult,
+  isProviderBusy,
 } from "./result-classification.mjs";
+import { analyzeProviderLog } from "./provider-evidence.mjs";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(scriptDir, "..", "..");
@@ -60,6 +61,10 @@ const approvedIntellijOnboarding = {
 };
 let activeOutputDirectory = null;
 const scriptStartedAt = Date.now();
+const minimumTimeoutSeconds = Number(
+  process.env.T1_MIN_TIMEOUT_SECONDS || 1_800,
+);
+const functionalFallbackQuietMs = 60_000;
 
 function argument(name, fallback) {
   const index = process.argv.indexOf(name);
@@ -641,85 +646,110 @@ async function waitForProviderLogMilestone(
 ) {
   const startedAt = Date.now();
   let logPath = null;
-  let lastObservation = "";
-  let initializationCompleted = false;
-  let bspClasspathsUpdated = false;
-  let importFailureLogged = false;
+  let lastContent = "";
+  let lastLogChangeAt = startedAt;
+  let evidence = analyzeProviderLog(provider, "");
+  let lastStatusBarText = "";
 
   while (Date.now() - startedAt < timeoutMs) {
-    let statusBarText = "";
-    let javaError = false;
-    if (provider === "jdtls") {
-      statusBarText = await readStatusBarText(driver).catch(() => "");
-      javaError = /Java:\s*Error/i.test(statusBarText);
-    }
+    const statusBarText = (await readStatusBarText(driver).catch(() => ""))
+      .replace(/\s+/g, " ")
+      .trim();
+    lastStatusBarText = statusBarText;
+    const busy = isProviderBusy(provider, statusBarText);
+    const terminalState = detectProviderTerminalState(
+      provider,
+      statusBarText,
+      busy,
+    );
     logPath ??= findProviderLog(profile.userDataDirectory, provider);
     if (logPath && fs.existsSync(logPath)) {
       const content = fs.readFileSync(logPath, "utf8");
-      initializationCompleted =
-        content.includes(">> initialization job finished") ||
-        content.includes("Workspace initialized");
-      bspClasspathsUpdated =
-        /Updating classpaths for \d+ projects? \(\d+ build targets?\) using batched BSP calls\./
-          .test(content);
-      importFailureLogged =
-        /(?:Failed to import projects?|Initialization failed)/i.test(content);
-      if (provider === "intellij" && /\bBUILD FAILED\b/.test(content)) {
+      if (content !== lastContent) {
+        lastContent = content;
+        lastLogChangeAt = Date.now();
+      }
+      evidence = analyzeProviderLog(provider, content);
+      if (evidence.fatalLogMatches.length > 0) {
         const result = {
           loaded: false,
           failed: true,
           failureCategory: "provider-import-failed",
           logPath,
           durationMs: Date.now() - startedAt,
-          lastObservation: "BUILD FAILED",
+          statusBarText,
+          ...evidence,
+          lastObservation: evidence.fatalLogMatches[0],
         };
         writeJson(path.join(outputDirectory, "provider-log-readiness.json"), result);
         return result;
       }
-      const initialized =
-        provider === "jdtls"
-          ? content.includes(">> build jobs finished")
-          : content.includes("Workspace model cache saved");
-      lastObservation =
-        provider === "jdtls"
-          ? content.includes(">> build jobs finished")
-            ? "build-jobs-finished"
-            : initializationCompleted
-              ? "initialization-finished"
-              : bspClasspathsUpdated
-                ? "bsp-classpaths-updated"
-              : "waiting-for-workspace"
-          : content.includes("Workspace model cache saved")
-            ? "workspace-model-saved"
-            : content.includes("BUILD SUCCESSFUL")
-              ? "gradle-import-succeeded"
-              : "waiting-for-gradle-import";
-      if (initialized) {
+      if (evidence.nativeCompleted) {
         const result = {
           loaded: true,
           failed: false,
           logPath,
           durationMs: Date.now() - startedAt,
-          lastObservation,
-          initializationCompleted,
-          bspClasspathsUpdated,
+          statusBarText,
+          completionEvidence: "native-log",
+          ...evidence,
+        };
+        writeJson(path.join(outputDirectory, "provider-log-readiness.json"), result);
+        return result;
+      }
+      const logQuiet =
+        Date.now() - lastLogChangeAt >= functionalFallbackQuietMs;
+      if (
+        provider === "intellij" &&
+        evidence.functionalCandidate &&
+        terminalState === "ready" &&
+        logQuiet
+      ) {
+        const result = {
+          loaded: true,
+          failed: false,
+          logPath,
+          durationMs: Date.now() - startedAt,
+          statusBarText,
+          completionEvidence: "functional-fallback-candidate",
+          ...evidence,
+          lastObservation: "functional-fallback-candidate",
         };
         writeJson(path.join(outputDirectory, "provider-log-readiness.json"), result);
         return result;
       }
     }
-    if (javaError) {
+    if (
+      provider === "jdtls" &&
+      (terminalState === "warning" || terminalState === "error")
+    ) {
       const result = {
-        loaded: false,
-        failed: true,
-        failureCategory: "provider-import-failed",
+        loaded: true,
+        failed: false,
         logPath,
         durationMs: Date.now() - startedAt,
-        lastObservation: "java-error",
         statusBarText,
-        initializationCompleted,
-        bspClasspathsUpdated,
-        importFailureLogged,
+        completionEvidence: "terminal-status",
+        ...evidence,
+        lastObservation: `java-${terminalState}`,
+      };
+      writeJson(path.join(outputDirectory, "provider-log-readiness.json"), result);
+      return result;
+    }
+    if (
+      provider === "jdtls" &&
+      terminalState === "ready" &&
+      Date.now() - lastLogChangeAt >= functionalFallbackQuietMs
+    ) {
+      const result = {
+        loaded: true,
+        failed: false,
+        logPath,
+        durationMs: Date.now() - startedAt,
+        statusBarText,
+        completionEvidence: "functional-fallback-candidate",
+        ...evidence,
+        lastObservation: "functional-fallback-candidate",
       };
       writeJson(path.join(outputDirectory, "provider-log-readiness.json"), result);
       return result;
@@ -733,10 +763,8 @@ async function waitForProviderLogMilestone(
     failureCategory: "provider-log-timeout",
     logPath,
     durationMs: Date.now() - startedAt,
-    lastObservation,
-    initializationCompleted,
-    bspClasspathsUpdated,
-    importFailureLogged,
+    statusBarText: lastStatusBarText,
+    ...evidence,
   };
   writeJson(path.join(outputDirectory, "provider-log-readiness.json"), result);
   return result;
@@ -750,10 +778,6 @@ async function waitForProviderIdle(
   stableMs = 30_000,
 ) {
   const startedAt = Date.now();
-  const busyPattern =
-    provider === "jdtls"
-      ? /Java:\s*(?:Activating|Importing|Building)/i
-      : /(?:Indexing(?::\s*Indexing)?|Importing project)/i;
   let stableStartedAt = null;
   let stableTerminalState = null;
   let lastTerminalState = null;
@@ -769,7 +793,7 @@ async function waitForProviderIdle(
       });
       lastText = text;
     }
-    const busy = busyPattern.test(text);
+    const busy = isProviderBusy(provider, text);
     const terminalState = detectProviderTerminalState(provider, text, busy);
     lastTerminalState = terminalState;
     if (terminalState) {
@@ -829,9 +853,39 @@ async function waitForProviderIdleAfterLog(
   return buildProviderLoadResult(log, ui);
 }
 
+function refreshProviderLoadEvidence(providerLoad, provider) {
+  const logPath = providerLoad.log?.logPath;
+  if (!logPath || !fs.existsSync(logPath)) {
+    return providerLoad;
+  }
+  const evidence = analyzeProviderLog(
+    provider,
+    fs.readFileSync(logPath, "utf8"),
+  );
+  const log = {
+    ...providerLoad.log,
+    ...evidence,
+  };
+  if (evidence.fatalLogMatches.length === 0) {
+    return {
+      ...providerLoad,
+      log,
+    };
+  }
+  return {
+    ...providerLoad,
+    loaded: false,
+    importCompleted: true,
+    importStatus: "import-failed",
+    terminalState: "error",
+    failureCategory: "provider-import-failed",
+    completionEvidence: "fatal-log",
+    log,
+  };
+}
+
 async function captureStableDiagnostics(
   driver,
-  provider,
   relativeFiles,
   outputDirectory,
 ) {
@@ -843,7 +897,7 @@ async function captureStableDiagnostics(
     await driver.executeVSCodeCommand(
       "javaImportBenchmark.captureDiagnostics",
       {
-        scope: provider === "jdtls" ? "workspace" : "probe-files",
+        scope: "probe-files",
         relativeFiles,
         resultPath,
         stableMs,
@@ -1342,6 +1396,10 @@ async function main() {
     outputDirectory,
     "source-readiness-result.json",
   );
+  const effectiveTimeoutSeconds = Math.max(
+    project.timeoutSeconds,
+    minimumTimeoutSeconds,
+  );
   const processStartedAt = new Date();
   process.env.IMPORT_RESULT = sourceResultPath;
   process.env.IMPORT_CASE_JSON = JSON.stringify({
@@ -1350,7 +1408,7 @@ async function main() {
     sourceSymbol: project.sourceSymbol,
   });
   process.env.IMPORT_PRODUCT = provider;
-  process.env.IMPORT_TIMEOUT_MS = String(project.timeoutSeconds * 1_000);
+  process.env.IMPORT_TIMEOUT_MS = String(effectiveTimeoutSeconds * 1_000);
   process.env.IMPORT_TARGET_PHASE = "source-ready";
   process.env.IMPORT_PROCESS_STARTED_AT = processStartedAt.toISOString();
   process.env.IMPORT_EXTENSION_INVENTORY = JSON.stringify(install.inventory);
@@ -1390,7 +1448,7 @@ async function main() {
     }
     const deadline =
       Date.parse(processStartedAt.toISOString()) +
-      project.timeoutSeconds * 1_000 +
+      effectiveTimeoutSeconds * 1_000 +
       120_000;
     const providerLog = await waitForProviderLogMilestone(
       driver,
@@ -1431,21 +1489,33 @@ async function main() {
     ])];
     const diagnostics = await captureStableDiagnostics(
       driver,
-      provider,
       diagnosticFiles,
       outputDirectory,
     );
     const sourceReady =
       sourceResult.status === "source-ready" &&
       Boolean(sourceResult.sourceReadyAt) &&
+      sourceResult.documentSymbolReady === true &&
+      sourceResult.hoverReady === true &&
       !sourceResult.error;
     const errorCount = Number(diagnostics.counts?.error ?? 0);
     const warningCount = Number(diagnostics.counts?.warning ?? 0);
-    const providerLoad = reconcileProviderLoadResult(observedProviderLoad, {
-      sourceReady,
-      diagnosticsStable: diagnostics.stable,
-      errorCount,
-    });
+    const finalProviderLoad =
+      observedProviderLoad.importStatus === "ready"
+        ? buildProviderLoadResult(
+            providerLog,
+            await waitForProviderIdle(
+              driver,
+              provider,
+              Math.max(0, deadline - Date.now()),
+              outputDirectory,
+            ),
+          )
+        : observedProviderLoad;
+    const providerLoad = refreshProviderLoadEvidence(
+      finalProviderLoad,
+      provider,
+    );
     const classification = classifyLoadResult({
       sourceReady,
       sourceFailureCategory: sourceResult.failureCategory,
@@ -1458,6 +1528,7 @@ async function main() {
     finalResult = {
       ...sourceResult,
       operatingSystem: process.env.T1_OPERATING_SYSTEM ?? process.platform,
+      effectiveTimeoutSeconds,
       status: successful ? "success" : "failure",
       sourceReady,
       providerLoaded: providerLoad.loaded,
@@ -1506,7 +1577,35 @@ async function main() {
             : null) ||
           `Load result failed: ${classification.failureCategory}`,
     };
+    const ruleEvidence = {
+      schemaVersion: 1,
+      provider,
+      effectiveTimeoutSeconds,
+      fatalLogMatches: providerLoad.log?.fatalLogMatches ?? [],
+      nativeCompletionMatches:
+        providerLoad.log?.nativeCompletionMatches ?? [],
+      nativeCompletion:
+        providerLoad.log?.completionEvidence === "native-log",
+      functionalCompletion:
+        providerLoad.log?.completionEvidence ===
+        "functional-fallback-candidate",
+      uiStable: providerLoad.ui?.settled === true,
+      uiTerminalState: providerLoad.terminalState ?? null,
+      finalStatusBarText:
+        providerLoad.ui?.finalStatusBarText ??
+        providerLoad.log?.statusBarText ??
+        "",
+      documentSymbolReady: sourceResult.documentSymbolReady === true,
+      hoverReady: sourceResult.hoverReady === true,
+      diagnosticsStable: diagnostics.stable,
+      errorCount,
+      warningCount,
+      result: successful ? "PASS" : "FAIL",
+      failureCategory: classification.failureCategory,
+      measuredAt: completedAt.toISOString(),
+    };
     writeJson(resultPath, finalResult);
+    writeJson(path.join(outputDirectory, "rule-evidence.json"), ruleEvidence);
     await saveScreenshot(driver, outputDirectory, "07-load-result");
     writeJson(path.join(outputDirectory, "comparison-metrics.json"), {
       provider,

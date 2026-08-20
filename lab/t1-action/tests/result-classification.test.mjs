@@ -4,7 +4,7 @@ import {
   buildProviderLoadResult,
   classifyLoadResult,
   detectProviderTerminalState,
-  reconcileProviderLoadResult,
+  isProviderBusy,
 } from "../result-classification.mjs";
 
 test("JDT LS exposes Ready, Warning, and Error as terminal states", () => {
@@ -22,6 +22,28 @@ test("JDT LS exposes Ready, Warning, and Error as terminal states", () => {
   );
   assert.equal(
     detectProviderTerminalState("jdtls", "Java: Building", true),
+    null,
+  );
+});
+
+test("provider busy states include long-running refresh and indexing text", () => {
+  assert.equal(isProviderBusy("jdtls", "Java: Refreshing workspace"), true);
+  assert.equal(isProviderBusy("jdtls", "Java: Searching... - 80%"), true);
+  assert.equal(isProviderBusy("intellij", "Indexing: 98%"), true);
+  assert.equal(
+    isProviderBusy("intellij", "Indexing: Just a few more moments..."),
+    true,
+  );
+  assert.equal(isProviderBusy("intellij", "Java and Kotlin"), false);
+});
+
+test("IntelliJ requires its status item before UI is ready", () => {
+  assert.equal(
+    detectProviderTerminalState("intellij", "Java and Kotlin", false),
+    "ready",
+  );
+  assert.equal(
+    detectProviderTerminalState("intellij", "Ln 1, Col 1", false),
     null,
   );
 });
@@ -77,78 +99,6 @@ test("completed initialization and active indexing are not not-loaded", () => {
   assert.equal(uiTimeout.loaded, true);
   assert.equal(uiTimeout.importStatus, "loaded-ui-timeout");
   assert.equal(uiTimeout.failureCategory, "provider-ui-timeout");
-});
-
-test("BSP source readiness can complete a missing build marker", () => {
-  const reconciled = reconcileProviderLoadResult(
-    {
-      loaded: true,
-      importCompleted: false,
-      importStatus: "loaded-finalization-timeout",
-      terminalState: null,
-      failureCategory: "provider-finalization-timeout",
-      log: {
-        initializationCompleted: true,
-        bspClasspathsUpdated: true,
-      },
-      ui: null,
-    },
-    {
-      sourceReady: true,
-      diagnosticsStable: true,
-      errorCount: 0,
-    },
-  );
-  assert.equal(reconciled.importStatus, "ready");
-  assert.equal(reconciled.terminalState, "ready");
-  assert.equal(reconciled.completionEvidence, "bsp-source-ready");
-});
-
-test("BSP evidence overrides an uncorroborated Java Error state", () => {
-  const reconciled = reconcileProviderLoadResult(
-    {
-      loaded: false,
-      importCompleted: true,
-      importStatus: "import-failed",
-      terminalState: "error",
-      failureCategory: "provider-import-failed",
-      log: {
-        initializationCompleted: true,
-        bspClasspathsUpdated: true,
-        importFailureLogged: false,
-      },
-      ui: null,
-    },
-    {
-      sourceReady: true,
-      diagnosticsStable: true,
-      errorCount: 0,
-    },
-  );
-  assert.equal(reconciled.importStatus, "ready");
-  assert.equal(reconciled.completionEvidence, "bsp-source-ready");
-
-  const loggedFailure = reconcileProviderLoadResult(
-    {
-      loaded: false,
-      importCompleted: true,
-      importStatus: "import-failed",
-      terminalState: "error",
-      failureCategory: "provider-import-failed",
-      log: {
-        initializationCompleted: true,
-        bspClasspathsUpdated: true,
-        importFailureLogged: true,
-      },
-      ui: null,
-    },
-    {
-      sourceReady: true,
-      diagnosticsStable: true,
-      errorCount: 0,
-    },
-  );
-  assert.equal(loggedFailure.importStatus, "import-failed");
 });
 
 test("final result prioritizes provider import state", () => {

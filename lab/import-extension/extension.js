@@ -24,15 +24,38 @@ function round(value) {
   return Math.round(value * 100) / 100;
 }
 
-function normalizePath(value) {
-  return decodeURIComponent(String(value || ""))
-    .replace(/\\/g, "/")
-    .toLowerCase();
-}
-
 function writeResult(resultFile, result) {
   fs.mkdirSync(path.dirname(resultFile), { recursive: true });
   fs.writeFileSync(resultFile, JSON.stringify(result, null, 2));
+}
+
+function flattenDocumentSymbols(symbols) {
+  const flattened = [];
+  for (const symbol of Array.isArray(symbols) ? symbols : []) {
+    flattened.push(symbol);
+    if (Array.isArray(symbol.children)) {
+      flattened.push(...flattenDocumentSymbols(symbol.children));
+    }
+  }
+  return flattened;
+}
+
+function isTypeSymbol(symbol) {
+  return [
+    vscode.SymbolKind.Class,
+    vscode.SymbolKind.Interface,
+    vscode.SymbolKind.Enum,
+    vscode.SymbolKind.Struct,
+  ].includes(symbol?.kind);
+}
+
+function symbolPosition(symbol) {
+  return (
+    symbol?.selectionRange?.start ??
+    symbol?.range?.start ??
+    symbol?.location?.range?.start ??
+    null
+  );
 }
 
 function serializeDiagnostics(uri) {
@@ -274,6 +297,9 @@ async function runT1() {
     error: null,
     semanticApi: null,
     diagnosticLatency: null,
+    documentSymbolReady: false,
+    hoverReady: false,
+    lastSemanticProbe: null,
   };
 
   try {
@@ -297,34 +323,50 @@ async function runT1() {
     }
 
     const started = performance.now();
-    const expectedFile = normalizePath(importCase.relativeFile);
     while (performance.now() - started < timeoutMs) {
       result.sourceAttempts += 1;
       try {
         const symbols = await withTimeout(
           vscode.commands.executeCommand(
-            "vscode.executeWorkspaceSymbolProvider",
-            importCase.sourceSymbol,
+            "vscode.executeDocumentSymbolProvider",
+            fileUri,
           ),
           30000,
-          "Workspace symbol request",
+          "Document symbol request",
         );
-        const matched = Array.isArray(symbols)
-          ? symbols.some((item) => {
-              const uri = item?.location?.uri;
-              return (
-                item.name === importCase.sourceSymbol &&
-                uri &&
-                normalizePath(uri.toString()).endsWith(expectedFile)
-              );
-            })
-          : false;
-        if (matched) {
+        const flattened = flattenDocumentSymbols(symbols);
+        const matched = flattened.find(
+          (item) =>
+            item?.name === importCase.sourceSymbol &&
+            isTypeSymbol(item),
+        );
+        const position = symbolPosition(matched);
+        result.documentSymbolReady = Boolean(matched && position);
+        let hovers = [];
+        if (result.documentSymbolReady) {
+          hovers = await withTimeout(
+            vscode.commands.executeCommand(
+              "vscode.executeHoverProvider",
+              fileUri,
+              position,
+            ),
+            30000,
+            "Hover request",
+          );
+        }
+        result.hoverReady = Array.isArray(hovers) && hovers.length > 0;
+        result.lastSemanticProbe = {
+          documentSymbolCount: flattened.length,
+          matchedSymbol: matched?.name ?? null,
+          hoverCount: Array.isArray(hovers) ? hovers.length : 0,
+        };
+        if (result.documentSymbolReady && result.hoverReady) {
           result.sourceReadyMs = round(performance.now() - started);
           result.sourceReadyAt = new Date().toISOString();
           result.processToSourceReadyMs = processStartedAt
             ? Date.now() - Date.parse(processStartedAt)
             : null;
+          result.semanticApi = "document-symbol+hover";
           result.status = "source-ready";
           return;
         }

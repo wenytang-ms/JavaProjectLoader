@@ -76,7 +76,7 @@ jobs:
   t1:
     name: T1 / ${{ matrix.project.id }} / ${{ matrix.provider }} / ${{ matrix.os }}
     needs: prepare
-    timeout-minutes: 75
+    timeout-minutes: 50
     strategy:
       fail-fast: false
       max-parallel: 20
@@ -85,6 +85,7 @@ jobs:
     env:
       T1_OUTPUT_DIR: ${{ github.workspace }}/lab/t1-action/results/${{ matrix.project.id }}/${{ matrix.provider }}/${{ matrix.os }}
       T1_OPERATING_SYSTEM: ${{ matrix.os }}
+      T1_MIN_TIMEOUT_SECONDS: "1800"
     steps:
       - uses: actions/checkout@v5
 
