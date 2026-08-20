@@ -517,8 +517,8 @@
             "version": "21"
           },
           "projectJava": {
-            "distribution": "temurin",
-            "version": "21"
+            "distribution": "graalvm",
+            "version": "25"
           },
           "vscodeSettings": {
             "java.import.maven.enabled": false,
@@ -531,8 +531,8 @@
             "source": "bundled"
           },
           "projectJava": {
-            "distribution": "temurin",
-            "version": "21"
+            "distribution": "graalvm",
+            "version": "25"
           },
           "vscodeSettings": {}
         }
@@ -4901,6 +4901,15 @@
           "build.gradle"
         ]
       },
+      "checkout": {
+        "gradleSiblingProjects": [
+          {
+            "name": "supertokens-plugin-interface",
+            "repository": "https://github.com/supertokens/supertokens-plugin-interface.git",
+            "commit": "a1ae34c850e0af948c019f33efa14856ecbf66c6"
+          }
+        ]
+      },
       "providers": {
         "jdtls": {
           "runtimeJava": {
@@ -4910,7 +4919,7 @@
           },
           "projectJava": {
             "distribution": "temurin",
-            "version": "17"
+            "version": "21"
           },
           "vscodeSettings": {
             "java.import.maven.enabled": false,
@@ -4924,7 +4933,7 @@
           },
           "projectJava": {
             "distribution": "temurin",
-            "version": "17"
+            "version": "21"
           },
           "vscodeSettings": {}
         }
@@ -5446,6 +5455,9 @@
           "build.gradle",
           "slidableactivity/build.gradle"
         ]
+      },
+      "checkout": {
+        "submodules": true
       },
       "providers": {
         "jdtls": {
@@ -6347,7 +6359,7 @@
           },
           "projectJava": {
             "distribution": "temurin",
-            "version": "21"
+            "version": "25"
           },
           "vscodeSettings": {
             "java.import.maven.enabled": false,
@@ -6361,7 +6373,7 @@
           },
           "projectJava": {
             "distribution": "temurin",
-            "version": "21"
+            "version": "25"
           },
           "vscodeSettings": {}
         }
@@ -6618,7 +6630,7 @@
           },
           "projectJava": {
             "distribution": "temurin",
-            "version": "17"
+            "version": "25"
           },
           "vscodeSettings": {
             "java.import.maven.enabled": false,
@@ -6632,7 +6644,7 @@
           },
           "projectJava": {
             "distribution": "temurin",
-            "version": "17"
+            "version": "25"
           },
           "vscodeSettings": {}
         }
@@ -6749,6 +6761,10 @@
           "build.gradle",
           "integration-tests/build.gradle"
         ]
+      },
+      "toolchainJava": {
+        "distribution": "temurin",
+        "version": "8"
       },
       "providers": {
         "jdtls": {

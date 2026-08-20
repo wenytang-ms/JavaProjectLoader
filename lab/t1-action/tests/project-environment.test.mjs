@@ -9,6 +9,7 @@ import {
   discoverProjectEnvironment,
   provisionProjectEnvironment,
 } from "../project-environment.mjs";
+import { gradleSiblingProjectSettings } from "../run-t1-autotest.mjs";
 
 function writeFixture(root, relativePath, content = "fixture\n") {
   const filePath = path.join(root, ...relativePath.split("/"));
@@ -27,6 +28,11 @@ test("workflow limits each twenty-five-project batch to twenty parallel jobs", (
   assert.match(workflow, /max-parallel: 20/);
   assert.match(workflow, /--batch "\$\{\{ inputs\.batch \}\}"/);
   assert.match(workflow, /t1-aggregate-conclusion-batch-/);
+  assert.match(workflow, /overwrite-settings: false/);
+  assert.match(
+    workflow,
+    /JDK\$\{\{ matrix\.environment\.projectJavaVersion \}\}=\$env:JAVA_HOME/,
+  );
 });
 
 test("every project exposes complete provider host requirements", () => {
@@ -106,4 +112,21 @@ test("an unmanaged case validates its generated Maven descriptor", () => {
     fs.rmSync(checkout, { recursive: true, force: true });
     fs.rmSync(workspace, { recursive: true, force: true });
   }
+});
+
+test("Gradle sibling project settings support Groovy and Kotlin DSL", () => {
+  assert.equal(
+    gradleSiblingProjectSettings(
+      "supertokens-plugin-interface",
+      "../plugin-interface",
+    ),
+    "\ninclude ':supertokens-plugin-interface'\n" +
+      "project(':supertokens-plugin-interface').projectDir = " +
+      "file('../plugin-interface')\n",
+  );
+  assert.equal(
+    gradleSiblingProjectSettings("dependency", "../dependency", true),
+    "\ninclude(\":dependency\")\n" +
+      "project(\":dependency\").projectDir = file(\"../dependency\")\n",
+  );
 });

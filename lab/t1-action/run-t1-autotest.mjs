@@ -96,20 +96,94 @@ async function downloadFile(url, filePath) {
   fs.writeFileSync(filePath, content);
 }
 
-function cloneProject(project, checkoutPath) {
-  fs.rmSync(checkoutPath, { recursive: true, force: true });
-  fs.mkdirSync(checkoutPath, { recursive: true });
-  run("git", ["init", "--quiet"], { cwd: checkoutPath });
+function cloneRepository(repository, commit, targetPath, { submodules = false } = {}) {
+  fs.rmSync(targetPath, { recursive: true, force: true });
+  fs.mkdirSync(targetPath, { recursive: true });
+  run("git", ["init", "--quiet"], { cwd: targetPath });
   if (process.platform === "win32") {
-    run("git", ["config", "core.longpaths", "true"], { cwd: checkoutPath });
+    run("git", ["config", "core.longpaths", "true"], { cwd: targetPath });
   }
-  run("git", ["remote", "add", "origin", project.repository], { cwd: checkoutPath });
+  run("git", ["remote", "add", "origin", repository], { cwd: targetPath });
   run(
     "git",
-    ["fetch", "--quiet", "--depth=1", "--filter=blob:none", "origin", project.commit],
-    { cwd: checkoutPath },
+    ["fetch", "--quiet", "--depth=1", "--filter=blob:none", "origin", commit],
+    { cwd: targetPath },
   );
-  run("git", ["checkout", "--quiet", "--detach", "FETCH_HEAD"], { cwd: checkoutPath });
+  run("git", ["checkout", "--quiet", "--detach", "FETCH_HEAD"], { cwd: targetPath });
+  if (submodules) {
+    run(
+      "git",
+      ["submodule", "update", "--init", "--recursive", "--depth=1"],
+      { cwd: targetPath },
+    );
+  }
+}
+
+export function gradleSiblingProjectSettings(
+  name,
+  relativePath,
+  kotlinDsl = false,
+) {
+  const normalizedPath = relativePath.split(path.sep).join("/");
+  return kotlinDsl
+    ? `\ninclude(":${name}")\n` +
+      `project(":${name}").projectDir = file("${normalizedPath}")\n`
+    : `\ninclude ':${name}'\n` +
+      `project(':${name}').projectDir = file('${normalizedPath}')\n`;
+}
+
+function cloneProject(project, checkoutPath) {
+  const checkout = project.projectSetup?.checkout ?? {};
+  cloneRepository(project.repository, project.commit, checkoutPath, {
+    submodules: checkout.submodules === true,
+  });
+
+  const siblingProjects = [];
+  for (const dependency of checkout.gradleSiblingProjects ?? []) {
+    const dependencyDirectory =
+      `${path.basename(checkoutPath)}-${dependency.name}`;
+    const dependencyPath = path.join(
+      path.dirname(checkoutPath),
+      dependencyDirectory,
+    );
+    cloneRepository(dependency.repository, dependency.commit, dependencyPath);
+    siblingProjects.push({
+      name: dependency.name,
+      repository: dependency.repository,
+      commit: dependency.commit,
+      relativePath: path.relative(checkoutPath, dependencyPath),
+    });
+  }
+
+  if (siblingProjects.length > 0) {
+    const groovySettings = path.join(checkoutPath, "settings.gradle");
+    const kotlinSettings = path.join(checkoutPath, "settings.gradle.kts");
+    const settingsPath = fs.existsSync(kotlinSettings)
+      ? kotlinSettings
+      : groovySettings;
+    if (!fs.existsSync(settingsPath)) {
+      throw new Error(
+        `Gradle sibling projects require settings.gradle or settings.gradle.kts: ` +
+        checkoutPath,
+      );
+    }
+    const kotlinDsl = settingsPath.endsWith(".kts");
+    for (const dependency of siblingProjects) {
+      fs.appendFileSync(
+        settingsPath,
+        gradleSiblingProjectSettings(
+          dependency.name,
+          dependency.relativePath,
+          kotlinDsl,
+        ),
+      );
+    }
+  }
+
+  return {
+    submodules: checkout.submodules === true,
+    siblingProjects,
+  };
 }
 
 function createSyntheticMavenWorkspace(project, checkoutPath, workspacePath) {
@@ -977,7 +1051,8 @@ async function main() {
     process.env.RUNNER_TEMP ?? os.tmpdir(),
     `java-provider-t1-${project.id}-${provider}-workspace`,
   );
-  cloneProject(project, checkoutPath);
+  const checkoutSetup = cloneProject(project, checkoutPath);
+  writeJson(path.join(outputDirectory, "checkout-setup.json"), checkoutSetup);
   const workspacePath = project.syntheticMavenTargetFile
     ? syntheticWorkspacePath
     : checkoutPath;

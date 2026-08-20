@@ -82,7 +82,7 @@
     "commit": "c22a1d9f463ae3d0640db764d7361556d6981e9b",
     "relativeFile": "module-tests/src/main/java/okhttp3/modules/Main.java",
     "sourceSymbol": "Main",
-    "javaVersion": "21",
+    "javaVersion": "25",
     "timeoutSeconds": 900,
     "batch": 1,
     "t1Eligible": true
@@ -803,7 +803,7 @@
     "commit": "0c1739bf43a49d0c4a4892ca3f49cd3303ad28ad",
     "relativeFile": "src/main/java/io/supertokens/Main.java",
     "sourceSymbol": "Main",
-    "javaVersion": "17",
+    "javaVersion": "21",
     "timeoutSeconds": 900,
     "batch": 3,
     "t1Eligible": true
@@ -1036,7 +1036,7 @@
     "commit": "a6b836422f6d89cd935906280e98fd95345833f9",
     "relativeFile": "aop/src/main/java/io/micronaut/aop/Around.java",
     "sourceSymbol": "Around",
-    "javaVersion": "21",
+    "javaVersion": "25",
     "timeoutSeconds": 1500,
     "batch": 4,
     "t1Eligible": true
@@ -1080,7 +1080,7 @@
     "commit": "21abf15952ec6517f972cb06b0e5b7bf28a6763a",
     "relativeFile": "junit-start/src/main/java/org/junit/start/JUnit.java",
     "sourceSymbol": "JUnit",
-    "javaVersion": "17",
+    "javaVersion": "25",
     "timeoutSeconds": 1200,
     "batch": 4,
     "t1Eligible": true

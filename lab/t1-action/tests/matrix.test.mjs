@@ -125,3 +125,34 @@ test("Spring Boot remains in the first canary batch with JDK 25", () => {
   assert.equal(project.javaVersion, "25");
   assert.equal(project.timeoutSeconds, 1800);
 });
+
+test("import repair contracts expose required JDKs and toolchains", () => {
+  const projects = loadProjects();
+  const entries = createMatrixEntries(
+    projects.filter((project) =>
+      ["btrace", "junit-framework", "micronaut-core", "okhttp"].includes(
+        project.id,
+      ),
+    ),
+    ["intellij"],
+    ["windows-latest"],
+  );
+  const byProject = new Map(entries.map((entry) => [entry.project.id, entry]));
+
+  assert.equal(
+    byProject.get("btrace").environment.toolchainJavaVersion,
+    "8",
+  );
+  assert.equal(
+    byProject.get("junit-framework").environment.projectJavaVersion,
+    "25",
+  );
+  assert.equal(
+    byProject.get("micronaut-core").environment.projectJavaVersion,
+    "25",
+  );
+  assert.equal(
+    byProject.get("okhttp").environment.projectJavaDistribution,
+    "graalvm",
+  );
+});

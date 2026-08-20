@@ -135,6 +135,58 @@ export function validateProjectSetup(project) {
     );
   }
 
+  if (setup.toolchainJava) {
+    requireString(
+      setup.toolchainJava.version,
+      `${project.id}.projectSetup.toolchainJava.version`,
+    );
+    requireString(
+      setup.toolchainJava.distribution,
+      `${project.id}.projectSetup.toolchainJava.distribution`,
+    );
+  }
+
+  if (setup.checkout) {
+    if (
+      setup.checkout.submodules !== undefined &&
+      typeof setup.checkout.submodules !== "boolean"
+    ) {
+      throw new Error(
+        `${project.id}.projectSetup.checkout.submodules must be boolean.`,
+      );
+    }
+    if (
+      setup.checkout.gradleSiblingProjects !== undefined &&
+      !Array.isArray(setup.checkout.gradleSiblingProjects)
+    ) {
+      throw new Error(
+        `${project.id}.projectSetup.checkout.gradleSiblingProjects must be an array.`,
+      );
+    }
+    for (const dependency of setup.checkout.gradleSiblingProjects ?? []) {
+      requireString(
+        dependency.name,
+        `${project.id}.projectSetup.checkout.gradleSiblingProjects.name`,
+      );
+      if (!/^[A-Za-z0-9._-]+$/.test(dependency.name)) {
+        throw new Error(
+          `${project.id}.projectSetup.checkout dependency name is invalid: ` +
+          dependency.name,
+        );
+      }
+      requireString(
+        dependency.repository,
+        `${project.id}.projectSetup.checkout.gradleSiblingProjects.repository`,
+      );
+      if (!/^[a-f0-9]{40}$/.test(dependency.commit ?? "")) {
+        throw new Error(
+          `${project.id}.projectSetup.checkout dependency commit is invalid: ` +
+          dependency.commit,
+        );
+      }
+    }
+  }
+
   if (setup.buildTool === "maven") {
     requireString(
       setup.maven?.downloadUrl,
@@ -360,6 +412,8 @@ export function discoverProjectEnvironment(
     requirements: {
       runtimeJava: providerSetup.runtimeJava,
       projectJava: providerSetup.projectJava,
+      toolchainJava: setup.toolchainJava ?? null,
+      checkout: setup.checkout ?? null,
       preferredBuildTool: setup.buildTool,
       buildToolVersion: setup.buildToolVersion,
       buildToolVersionSource: setup.buildToolVersionSource,
@@ -657,6 +711,8 @@ export function provisionProjectEnvironment(
     requirements: {
       runtimeJava: providerSetup.runtimeJava,
       projectJava: providerSetup.projectJava,
+      toolchainJava: setup.toolchainJava ?? null,
+      checkout: setup.checkout ?? null,
       buildTool: setup.buildTool,
       buildToolVersion: setup.buildToolVersion,
       androidPackages: setup.androidSdk
