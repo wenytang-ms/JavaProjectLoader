@@ -132,11 +132,48 @@ export function gradleSiblingProjectSettings(
       `project(':${name}').projectDir = file('${normalizedPath}')\n`;
 }
 
+export function applyWindowsGradleExecutableExtensions(
+  checkoutPath,
+  configuration,
+  platform = process.platform,
+) {
+  if (!configuration || platform !== "win32") {
+    return null;
+  }
+  const filePath = path.join(checkoutPath, configuration.file);
+  let source = fs.readFileSync(filePath, "utf8");
+  for (const tool of configuration.tools) {
+    const before = source;
+    for (const quote of ['"', "'"]) {
+      source = source.replaceAll(
+        `file(${quote}bin/${tool}${quote})`,
+        `file(${quote}bin/${tool}.exe${quote})`,
+      );
+    }
+    if (source === before) {
+      throw new Error(
+        `Could not add the Windows executable extension for ${tool} in ` +
+        configuration.file,
+      );
+    }
+  }
+  fs.writeFileSync(filePath, source);
+  return {
+    file: configuration.file,
+    tools: configuration.tools,
+  };
+}
+
 function cloneProject(project, checkoutPath) {
   const checkout = project.projectSetup?.checkout ?? {};
   cloneRepository(project.repository, project.commit, checkoutPath, {
     submodules: checkout.submodules === true,
   });
+  const windowsGradleExecutableExtensions =
+    applyWindowsGradleExecutableExtensions(
+      checkoutPath,
+      checkout.windowsGradleExecutableExtensions,
+    );
 
   const siblingProjects = [];
   for (const dependency of checkout.gradleSiblingProjects ?? []) {
@@ -197,8 +234,11 @@ function cloneProject(project, checkoutPath) {
   return {
     submodules: checkout.submodules === true,
     siblingProjects,
+    windowsGradleExecutableExtensions,
     requiresMaterializedWorkspace:
-      checkout.submodules === true || siblingProjects.length > 0,
+      checkout.submodules === true ||
+      siblingProjects.length > 0 ||
+      windowsGradleExecutableExtensions !== null,
   };
 }
 

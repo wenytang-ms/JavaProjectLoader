@@ -160,6 +160,10 @@ test("import repair contracts expose required JDKs and toolchains", () => {
     byProject.get("okhttp").environment.projectJavaDistribution,
     "graalvm",
   );
+  assert.equal(
+    byProject.get("okhttp").environment.toolchainJavaVersions,
+    "11\n21",
+  );
   assert.equal(byProject.get("okhttp").environment.buildTool, "gradle");
 });
 

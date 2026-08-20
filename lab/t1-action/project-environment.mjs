@@ -236,6 +236,29 @@ export function validateProjectSetup(project) {
         );
       }
     }
+    if (setup.checkout.windowsGradleExecutableExtensions) {
+      const executableExtensions =
+        setup.checkout.windowsGradleExecutableExtensions;
+      requireRelativePath(
+        executableExtensions.file,
+        `${project.id}.projectSetup.checkout.windowsGradleExecutableExtensions.file`,
+      );
+      if (
+        !Array.isArray(executableExtensions.tools) ||
+        executableExtensions.tools.length === 0
+      ) {
+        throw new Error(
+          `${project.id}.projectSetup.checkout.windowsGradleExecutableExtensions.tools ` +
+          "must not be empty.",
+        );
+      }
+      for (const tool of executableExtensions.tools) {
+        requireString(
+          tool,
+          `${project.id}.projectSetup.checkout.windowsGradleExecutableExtensions.tools`,
+        );
+      }
+    }
   }
 
   if (setup.buildTool === "maven") {

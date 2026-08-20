@@ -512,6 +512,13 @@
       "gradleToolchains": {
         "restrictToConfiguredJdks": true
       },
+      "toolchainJava": {
+        "distribution": "temurin",
+        "versions": [
+          "11",
+          "21"
+        ]
+      },
       "providers": {
         "jdtls": {
           "runtimeJava": {
@@ -6781,6 +6788,15 @@
       },
       "gradleToolchains": {
         "restrictToConfiguredJdks": true
+      },
+      "checkout": {
+        "windowsGradleExecutableExtensions": {
+          "file": "common.gradle",
+          "tools": [
+            "javac",
+            "javadoc"
+          ]
+        }
       },
       "providers": {
         "jdtls": {

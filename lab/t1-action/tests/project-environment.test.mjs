@@ -10,6 +10,7 @@ import {
   provisionProjectEnvironment,
 } from "../project-environment.mjs";
 import {
+  applyWindowsGradleExecutableExtensions,
   configureGradleToolchainEnvironment,
   gradleSiblingProjectSettings,
   materializeWorkspace,
@@ -134,6 +135,40 @@ test("Gradle sibling project settings support Groovy and Kotlin DSL", () => {
     "\ninclude(\":dependency\")\n" +
       "project(\":dependency\").projectDir = file(\"../dependency\")\n",
   );
+});
+
+test("Windows Gradle executable paths receive the required extension", () => {
+  const checkout = fs.mkdtempSync(path.join(os.tmpdir(), "t1-gradle-exe-"));
+  try {
+    fs.writeFileSync(
+      path.join(checkout, "common.gradle"),
+      [
+        'file("bin/javac")',
+        "file('bin/javadoc')",
+      ].join("\n"),
+    );
+    const applied = applyWindowsGradleExecutableExtensions(
+      checkout,
+      {
+        file: "common.gradle",
+        tools: ["javac", "javadoc"],
+      },
+      "win32",
+    );
+    assert.deepEqual(applied, {
+      file: "common.gradle",
+      tools: ["javac", "javadoc"],
+    });
+    assert.equal(
+      fs.readFileSync(path.join(checkout, "common.gradle"), "utf8"),
+      [
+        'file("bin/javac.exe")',
+        "file('bin/javadoc.exe')",
+      ].join("\n"),
+    );
+  } finally {
+    fs.rmSync(checkout, { recursive: true, force: true });
+  }
 });
 
 test("materialized workspaces preserve setup files without Git metadata", () => {
