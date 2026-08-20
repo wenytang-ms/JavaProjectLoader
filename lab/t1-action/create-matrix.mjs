@@ -106,8 +106,9 @@ function matrixEnvironment(project, provider) {
         ? String(project.javaVersion ?? "21")
         : "",
       runtimeJavaDistribution: provider === "jdtls" ? "temurin" : "",
-      toolchainJavaVersion: "",
+      toolchainJavaVersions: "",
       toolchainJavaDistribution: "",
+      buildTool: "",
     };
   }
 
@@ -118,9 +119,11 @@ function matrixEnvironment(project, provider) {
     runtimeJavaSource: providerSetup.runtimeJava.source,
     runtimeJavaVersion: providerSetup.runtimeJava.version ?? "",
     runtimeJavaDistribution: providerSetup.runtimeJava.distribution ?? "",
-    toolchainJavaVersion: project.projectSetup.toolchainJava?.version ?? "",
+    toolchainJavaVersions:
+      project.projectSetup.toolchainJava?.versions?.join("\n") ?? "",
     toolchainJavaDistribution:
       project.projectSetup.toolchainJava?.distribution ?? "",
+    buildTool: project.projectSetup.buildTool,
   };
   if (project.projectSetup.androidSdk) {
     environment.requiresAndroidSdk = true;

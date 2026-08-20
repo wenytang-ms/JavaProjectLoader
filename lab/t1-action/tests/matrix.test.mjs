@@ -140,9 +140,10 @@ test("import repair contracts expose required JDKs and toolchains", () => {
   const byProject = new Map(entries.map((entry) => [entry.project.id, entry]));
 
   assert.equal(
-    byProject.get("btrace").environment.toolchainJavaVersion,
-    "8",
+    byProject.get("btrace").environment.toolchainJavaVersions,
+    "8\n11\n17",
   );
+  assert.equal(byProject.get("btrace").environment.projectJavaVersion, "24");
   assert.equal(
     byProject.get("junit-framework").environment.projectJavaVersion,
     "25",
@@ -155,4 +156,5 @@ test("import repair contracts expose required JDKs and toolchains", () => {
     byProject.get("okhttp").environment.projectJavaDistribution,
     "graalvm",
   );
+  assert.equal(byProject.get("okhttp").environment.buildTool, "gradle");
 });

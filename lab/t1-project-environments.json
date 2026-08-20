@@ -509,6 +509,9 @@
           "module-tests/build.gradle.kts"
         ]
       },
+      "gradleToolchains": {
+        "restrictToConfiguredJdks": true
+      },
       "providers": {
         "jdtls": {
           "runtimeJava": {
@@ -6763,8 +6766,15 @@
         ]
       },
       "toolchainJava": {
-        "distribution": "temurin",
-        "version": "8"
+        "distribution": "zulu",
+        "versions": [
+          "8",
+          "11",
+          "17"
+        ]
+      },
+      "gradleToolchains": {
+        "restrictToConfiguredJdks": true
       },
       "providers": {
         "jdtls": {
@@ -6775,7 +6785,7 @@
           },
           "projectJava": {
             "distribution": "temurin",
-            "version": "21"
+            "version": "24"
           },
           "vscodeSettings": {
             "java.import.maven.enabled": false,
@@ -6789,7 +6799,7 @@
           },
           "projectJava": {
             "distribution": "temurin",
-            "version": "21"
+            "version": "24"
           },
           "vscodeSettings": {}
         }

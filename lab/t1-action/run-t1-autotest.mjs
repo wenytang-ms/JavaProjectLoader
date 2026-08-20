@@ -140,10 +140,9 @@ function cloneProject(project, checkoutPath) {
 
   const siblingProjects = [];
   for (const dependency of checkout.gradleSiblingProjects ?? []) {
-    const dependencyDirectory =
-      `${path.basename(checkoutPath)}-${dependency.name}`;
+    const dependencyDirectory = path.join(".t1-dependencies", dependency.name);
     const dependencyPath = path.join(
-      path.dirname(checkoutPath),
+      checkoutPath,
       dependencyDirectory,
     );
     cloneRepository(dependency.repository, dependency.commit, dependencyPath);
@@ -183,6 +182,54 @@ function cloneProject(project, checkoutPath) {
   return {
     submodules: checkout.submodules === true,
     siblingProjects,
+    requiresMaterializedWorkspace:
+      checkout.submodules === true || siblingProjects.length > 0,
+  };
+}
+
+export function materializeWorkspace(sourcePath, targetPath) {
+  fs.rmSync(targetPath, { recursive: true, force: true });
+  fs.cpSync(sourcePath, targetPath, {
+    recursive: true,
+    filter: (currentPath) => path.basename(currentPath) !== ".git",
+  });
+  return targetPath;
+}
+
+export function configureGradleToolchainEnvironment(
+  project,
+  environment = process.env,
+) {
+  if (
+    project.projectSetup?.buildTool !== "gradle" ||
+    project.projectSetup?.gradleToolchains?.restrictToConfiguredJdks !== true
+  ) {
+    return null;
+  }
+  const projectJavaHome = environment.T1_PROJECT_JAVA_HOME;
+  if (!projectJavaHome) {
+    throw new Error(
+      `${project.id} requires T1_PROJECT_JAVA_HOME for Gradle toolchains.`,
+    );
+  }
+  const configuredHomes = [
+    projectJavaHome,
+    ...(environment.T1_TOOLCHAIN_JAVA_HOMES ?? "")
+      .split(";")
+      .filter(Boolean),
+  ];
+  const properties = [
+    `-Dorg.gradle.java.installations.paths=${configuredHomes.join(",")}`,
+    "-Dorg.gradle.java.installations.auto-detect=false",
+    "-Dorg.gradle.java.installations.auto-download=false",
+  ];
+  environment.GRADLE_OPTS = [
+    environment.GRADLE_OPTS,
+    ...properties,
+  ].filter(Boolean).join(" ");
+  return {
+    homes: configuredHomes,
+    gradleOpts: environment.GRADLE_OPTS,
   };
 }
 
@@ -1051,10 +1098,16 @@ async function main() {
     process.env.RUNNER_TEMP ?? os.tmpdir(),
     `java-provider-t1-${project.id}-${provider}-workspace`,
   );
+  const materializedWorkspacePath = path.join(
+    process.env.RUNNER_TEMP ?? os.tmpdir(),
+    `java-provider-t1-${project.id}-${provider}-materialized`,
+  );
   const checkoutSetup = cloneProject(project, checkoutPath);
   writeJson(path.join(outputDirectory, "checkout-setup.json"), checkoutSetup);
   const workspacePath = project.syntheticMavenTargetFile
     ? syntheticWorkspacePath
+    : checkoutSetup.requiresMaterializedWorkspace
+      ? materializeWorkspace(checkoutPath, materializedWorkspacePath)
     : checkoutPath;
   const runtimeRelativeFile = project.syntheticMavenTargetFile
     ? project.syntheticMavenTargetFile
@@ -1091,6 +1144,14 @@ async function main() {
   if (project.projectSetup && process.env.T1_PROJECT_JAVA_HOME) {
     process.env.JAVA_HOME = process.env.T1_PROJECT_JAVA_HOME;
   }
+  const gradleToolchainEnvironment = configureGradleToolchainEnvironment(
+    project,
+    process.env,
+  );
+  writeJson(
+    path.join(outputDirectory, "gradle-toolchain-environment.json"),
+    gradleToolchainEnvironment,
+  );
 
   const vscodeExecutablePath = await downloadAndUnzipVSCode("stable");
   const profile = getTestProfilePaths(vscodeExecutablePath);

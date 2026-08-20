@@ -95,18 +95,30 @@ jobs:
           cache-dependency-path: lab/t1-action/package-lock.json
 
       - name: Set up additional project toolchain JDK
-        if: matrix.environment.toolchainJavaVersion != ''
+        if: matrix.environment.toolchainJavaVersions != ''
         uses: actions/setup-java@v5
         with:
           distribution: ${{ matrix.environment.toolchainJavaDistribution }}
-          java-version: ${{ matrix.environment.toolchainJavaVersion }}
+          java-version: ${{ matrix.environment.toolchainJavaVersions }}
           overwrite-settings: false
 
       - name: Record additional project toolchain JDK
-        if: matrix.environment.toolchainJavaVersion != ''
+        if: matrix.environment.toolchainJavaVersions != ''
         shell: pwsh
         run: |
-          "JDK${{ matrix.environment.toolchainJavaVersion }}=$env:JAVA_HOME" |
+          $versions = "${{ matrix.environment.toolchainJavaVersions }}" -split "\s+"
+          $homes = foreach ($version in $versions) {
+            $javaHome = Get-ChildItem Env: |
+              Where-Object Name -Like "JAVA_HOME_${version}_*" |
+              Select-Object -First 1
+            if (-not $javaHome) {
+              throw "actions/setup-java did not expose JAVA_HOME for JDK $version"
+            }
+            "JDK$version=$($javaHome.Value)" |
+              Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            $javaHome.Value
+          }
+          "T1_TOOLCHAIN_JAVA_HOMES=$($homes -join ';')" |
             Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Set up project JDK
@@ -153,6 +165,15 @@ jobs:
         run: |
           "T1_ANDROID_SDK_JAVA_HOME=$env:JAVA_HOME" |
             Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Remove setup-java Maven settings from Gradle imports
+        if: matrix.environment.buildTool == 'gradle'
+        shell: pwsh
+        run: |
+          $settings = Join-Path $HOME ".m2/settings.xml"
+          if (Test-Path $settings) {
+            Remove-Item -Force $settings
+          }
 
       - name: Set up declared project environment
         shell: pwsh

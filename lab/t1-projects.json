@@ -1102,7 +1102,7 @@
     "commit": "de9d9862d69fda35d707b17053b7cf141f6c9a00",
     "relativeFile": "integration-tests/src/main/java/dummy/SimpleEvent.java",
     "sourceSymbol": "SimpleEvent",
-    "javaVersion": "21",
+    "javaVersion": "24",
     "timeoutSeconds": 900,
     "batch": 4,
     "t1Eligible": true

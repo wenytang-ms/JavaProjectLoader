@@ -137,12 +137,32 @@ export function validateProjectSetup(project) {
 
   if (setup.toolchainJava) {
     requireString(
-      setup.toolchainJava.version,
-      `${project.id}.projectSetup.toolchainJava.version`,
-    );
-    requireString(
       setup.toolchainJava.distribution,
       `${project.id}.projectSetup.toolchainJava.distribution`,
+    );
+    if (
+      !Array.isArray(setup.toolchainJava.versions) ||
+      setup.toolchainJava.versions.length === 0
+    ) {
+      throw new Error(
+        `${project.id}.projectSetup.toolchainJava.versions must not be empty.`,
+      );
+    }
+    for (const version of setup.toolchainJava.versions) {
+      requireString(
+        version,
+        `${project.id}.projectSetup.toolchainJava.versions`,
+      );
+    }
+  }
+
+  if (
+    setup.gradleToolchains?.restrictToConfiguredJdks !== undefined &&
+    typeof setup.gradleToolchains.restrictToConfiguredJdks !== "boolean"
+  ) {
+    throw new Error(
+      `${project.id}.projectSetup.gradleToolchains.` +
+      `restrictToConfiguredJdks must be boolean.`,
     );
   }
 
@@ -413,6 +433,7 @@ export function discoverProjectEnvironment(
       runtimeJava: providerSetup.runtimeJava,
       projectJava: providerSetup.projectJava,
       toolchainJava: setup.toolchainJava ?? null,
+      gradleToolchains: setup.gradleToolchains ?? null,
       checkout: setup.checkout ?? null,
       preferredBuildTool: setup.buildTool,
       buildToolVersion: setup.buildToolVersion,
@@ -712,6 +733,7 @@ export function provisionProjectEnvironment(
       runtimeJava: providerSetup.runtimeJava,
       projectJava: providerSetup.projectJava,
       toolchainJava: setup.toolchainJava ?? null,
+      gradleToolchains: setup.gradleToolchains ?? null,
       checkout: setup.checkout ?? null,
       buildTool: setup.buildTool,
       buildToolVersion: setup.buildToolVersion,

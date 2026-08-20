@@ -9,7 +9,11 @@ import {
   discoverProjectEnvironment,
   provisionProjectEnvironment,
 } from "../project-environment.mjs";
-import { gradleSiblingProjectSettings } from "../run-t1-autotest.mjs";
+import {
+  configureGradleToolchainEnvironment,
+  gradleSiblingProjectSettings,
+  materializeWorkspace,
+} from "../run-t1-autotest.mjs";
 
 function writeFixture(root, relativePath, content = "fixture\n") {
   const filePath = path.join(root, ...relativePath.split("/"));
@@ -128,5 +132,44 @@ test("Gradle sibling project settings support Groovy and Kotlin DSL", () => {
     gradleSiblingProjectSettings("dependency", "../dependency", true),
     "\ninclude(\":dependency\")\n" +
       "project(\":dependency\").projectDir = file(\"../dependency\")\n",
+  );
+});
+
+test("materialized workspaces preserve setup files without Git metadata", () => {
+  const source = fs.mkdtempSync(path.join(os.tmpdir(), "t1-materialize-source-"));
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), "t1-materialize-target-"));
+  try {
+    writeFixture(source, ".git/config", "git metadata");
+    writeFixture(source, "SharedModules/core_settings.gradle", "configured");
+    materializeWorkspace(source, target);
+    assert.equal(fs.existsSync(path.join(target, ".git")), false);
+    assert.equal(
+      fs.readFileSync(
+        path.join(target, "SharedModules", "core_settings.gradle"),
+        "utf8",
+      ),
+      "configured",
+    );
+  } finally {
+    fs.rmSync(source, { recursive: true, force: true });
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("Gradle toolchains can be restricted to configured JDK homes", () => {
+  const project = loadProjects().find((entry) => entry.id === "okhttp");
+  const environment = {
+    T1_PROJECT_JAVA_HOME: "C:\\jdks\\graalvm-25",
+    T1_TOOLCHAIN_JAVA_HOMES: "C:\\jdks\\8;C:\\jdks\\11",
+  };
+  const result = configureGradleToolchainEnvironment(project, environment);
+  assert.deepEqual(result.homes, [
+    "C:\\jdks\\graalvm-25",
+    "C:\\jdks\\8",
+    "C:\\jdks\\11",
+  ]);
+  assert.match(
+    environment.GRADLE_OPTS,
+    /org\.gradle\.java\.installations\.auto-download=false/,
   );
 });
