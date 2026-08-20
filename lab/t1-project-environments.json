@@ -519,6 +519,12 @@
           "21"
         ]
       },
+      "windowsJavaToolCopies": [
+        {
+          "source": "lib/svm/bin/native-image.exe",
+          "target": "bin/native-image.exe"
+        }
+      ],
       "providers": {
         "jdtls": {
           "runtimeJava": {
@@ -5805,6 +5811,15 @@
       "buildToolVersion": "8.14.3",
       "buildToolVersionSource": "gradle/wrapper/gradle-wrapper.properties",
       "goVersion": "1.24",
+      "checkout": {
+        "windowsTextReplacements": [
+          {
+            "file": "buildSrc/src/main/groovy/org/apache/beam/gradle/BeamModulePlugin.groovy",
+            "from": "def goRootDir = \"${project.rootDir}/sdks/go\"",
+            "to": "def goRootDir = \"${project.rootDir.toString().replace('\\\\', '/')}/sdks/go\""
+          }
+        ]
+      },
       "selectionReason": "Selected in CSV order from repositories active within six months; the pinned revision contains a usable Java probe and supported build layout.",
       "buildDescriptors": {
         "maven": [],

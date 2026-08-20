@@ -11,6 +11,8 @@ import {
 } from "../project-environment.mjs";
 import {
   applyWindowsGradleExecutableExtensions,
+  applyWindowsJavaToolCopies,
+  applyWindowsTextReplacements,
   configureGradleToolchainEnvironment,
   gradleSiblingProjectSettings,
   materializeWorkspace,
@@ -159,6 +161,7 @@ test("Windows Gradle executable paths receive the required extension", () => {
       file: "common.gradle",
       tools: ["javac", "javadoc"],
     });
+
     assert.equal(
       fs.readFileSync(path.join(checkout, "common.gradle"), "utf8"),
       [
@@ -168,6 +171,61 @@ test("Windows Gradle executable paths receive the required extension", () => {
     );
   } finally {
     fs.rmSync(checkout, { recursive: true, force: true });
+  }
+});
+
+test("Windows checkout replacements normalize shell paths", () => {
+  const checkout = fs.mkdtempSync(path.join(os.tmpdir(), "t1-windows-text-"));
+  try {
+    fs.writeFileSync(
+      path.join(checkout, "plugin.gradle"),
+      'def root = "${project.rootDir}/sdks/go"\n',
+    );
+    const applied = applyWindowsTextReplacements(
+      checkout,
+      [{
+        file: "plugin.gradle",
+        from: 'def root = "${project.rootDir}/sdks/go"',
+        to: 'def root = "${project.rootDir.toString().replace("\\\\", "/")}/sdks/go"',
+      }],
+      "win32",
+    );
+    assert.deepEqual(applied, ["plugin.gradle"]);
+    assert.match(
+      fs.readFileSync(path.join(checkout, "plugin.gradle"), "utf8"),
+      /rootDir\.toString\(\)\.replace/,
+    );
+  } finally {
+    fs.rmSync(checkout, { recursive: true, force: true });
+  }
+});
+
+test("Windows Java tool copies expose tools Gradle cannot detect", () => {
+  const javaHome = fs.mkdtempSync(path.join(os.tmpdir(), "t1-java-tools-"));
+  try {
+    writeFixture(
+      javaHome,
+      "lib/svm/bin/native-image.exe",
+      "native-image",
+    );
+    const applied = applyWindowsJavaToolCopies(
+      javaHome,
+      [{
+        source: "lib/svm/bin/native-image.exe",
+        target: "bin/native-image.exe",
+      }],
+      "win32",
+    );
+    assert.deepEqual(applied, [{
+      source: "lib/svm/bin/native-image.exe",
+      target: "bin/native-image.exe",
+    }]);
+    assert.equal(
+      fs.readFileSync(path.join(javaHome, "bin", "native-image.exe"), "utf8"),
+      "native-image",
+    );
+  } finally {
+    fs.rmSync(javaHome, { recursive: true, force: true });
   }
 });
 

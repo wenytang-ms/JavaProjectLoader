@@ -197,6 +197,17 @@ export function validateProjectSetup(project) {
     }
   }
 
+  for (const [index, copy] of (setup.windowsJavaToolCopies ?? []).entries()) {
+    requireRelativePath(
+      copy.source,
+      `${project.id}.projectSetup.windowsJavaToolCopies[${index}].source`,
+    );
+    requireRelativePath(
+      copy.target,
+      `${project.id}.projectSetup.windowsJavaToolCopies[${index}].target`,
+    );
+  }
+
   if (setup.checkout) {
     if (
       setup.checkout.submodules !== undefined &&
@@ -258,6 +269,22 @@ export function validateProjectSetup(project) {
           `${project.id}.projectSetup.checkout.windowsGradleExecutableExtensions.tools`,
         );
       }
+    }
+    for (const [index, replacement] of (
+      setup.checkout.windowsTextReplacements ?? []
+    ).entries()) {
+      requireRelativePath(
+        replacement.file,
+        `${project.id}.projectSetup.checkout.windowsTextReplacements[${index}].file`,
+      );
+      requireString(
+        replacement.from,
+        `${project.id}.projectSetup.checkout.windowsTextReplacements[${index}].from`,
+      );
+      requireString(
+        replacement.to,
+        `${project.id}.projectSetup.checkout.windowsTextReplacements[${index}].to`,
+      );
     }
   }
 
@@ -491,6 +518,7 @@ export function discoverProjectEnvironment(
       checkout: setup.checkout ?? null,
       goVersion: setup.goVersion ?? null,
       bootstrapGradleVersion: setup.bootstrapGradleVersion ?? null,
+      windowsJavaToolCopies: setup.windowsJavaToolCopies ?? [],
       preferredBuildTool: setup.buildTool,
       buildToolVersion: setup.buildToolVersion,
       buildToolVersionSource: setup.buildToolVersionSource,
@@ -793,6 +821,7 @@ export function provisionProjectEnvironment(
       checkout: setup.checkout ?? null,
       goVersion: setup.goVersion ?? null,
       bootstrapGradleVersion: setup.bootstrapGradleVersion ?? null,
+      windowsJavaToolCopies: setup.windowsJavaToolCopies ?? [],
       buildTool: setup.buildTool,
       buildToolVersion: setup.buildToolVersion,
       androidPackages: setup.androidSdk

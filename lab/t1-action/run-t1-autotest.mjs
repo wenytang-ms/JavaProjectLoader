@@ -164,6 +164,54 @@ export function applyWindowsGradleExecutableExtensions(
   };
 }
 
+export function applyWindowsTextReplacements(
+  checkoutPath,
+  replacements,
+  platform = process.platform,
+) {
+  if (!replacements?.length || platform !== "win32") {
+    return [];
+  }
+  return replacements.map((replacement) => {
+    const filePath = path.join(checkoutPath, replacement.file);
+    const source = fs.readFileSync(filePath, "utf8");
+    if (!source.includes(replacement.from)) {
+      throw new Error(
+        `Could not find the configured Windows replacement in ` +
+        replacement.file,
+      );
+    }
+    fs.writeFileSync(
+      filePath,
+      source.replaceAll(replacement.from, replacement.to),
+    );
+    return replacement.file;
+  });
+}
+
+export function applyWindowsJavaToolCopies(
+  javaHome,
+  copies,
+  platform = process.platform,
+) {
+  if (!copies?.length || platform !== "win32") {
+    return [];
+  }
+  return copies.map((copy) => {
+    const source = path.join(javaHome, ...copy.source.split("/"));
+    const target = path.join(javaHome, ...copy.target.split("/"));
+    if (!fs.existsSync(source)) {
+      throw new Error(`Required Java tool does not exist: ${source}`);
+    }
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.copyFileSync(source, target);
+    return {
+      source: copy.source,
+      target: copy.target,
+    };
+  });
+}
+
 function cloneProject(project, checkoutPath) {
   const checkout = project.projectSetup?.checkout ?? {};
   cloneRepository(project.repository, project.commit, checkoutPath, {
@@ -174,6 +222,10 @@ function cloneProject(project, checkoutPath) {
       checkoutPath,
       checkout.windowsGradleExecutableExtensions,
     );
+  const windowsTextReplacements = applyWindowsTextReplacements(
+    checkoutPath,
+    checkout.windowsTextReplacements,
+  );
 
   const siblingProjects = [];
   for (const dependency of checkout.gradleSiblingProjects ?? []) {
@@ -235,10 +287,12 @@ function cloneProject(project, checkoutPath) {
     submodules: checkout.submodules === true,
     siblingProjects,
     windowsGradleExecutableExtensions,
+    windowsTextReplacements,
     requiresMaterializedWorkspace:
       checkout.submodules === true ||
       siblingProjects.length > 0 ||
-      windowsGradleExecutableExtensions !== null,
+      windowsGradleExecutableExtensions !== null ||
+      windowsTextReplacements.length > 0,
   };
 }
 
@@ -1182,6 +1236,14 @@ async function main() {
   if (project.projectSetup && process.env.T1_PROJECT_JAVA_HOME) {
     process.env.JAVA_HOME = process.env.T1_PROJECT_JAVA_HOME;
   }
+  const windowsJavaToolCopies = applyWindowsJavaToolCopies(
+    process.env.JAVA_HOME,
+    project.projectSetup?.windowsJavaToolCopies,
+  );
+  writeJson(
+    path.join(outputDirectory, "windows-java-tool-copies.json"),
+    windowsJavaToolCopies,
+  );
   const gradleToolchainEnvironment = configureGradleToolchainEnvironment(
     project,
     process.env,
