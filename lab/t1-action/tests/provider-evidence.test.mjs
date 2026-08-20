@@ -33,6 +33,25 @@ test("IntelliJ successful build has complete native evidence", () => {
   ]);
 });
 
+test("IntelliJ stderr warnings are not fatal by themselves", () => {
+  const evidence = analyzeProviderLog("intellij", `
+    [IMPORT ERR]: WARNING: A restricted method in java.lang.System has been called
+    [IMPORT ERR]: WARNING: Use --enable-native-access=ALL-UNNAMED to avoid a warning
+    Successfully imported /tmp/guava
+    Workspace model cache saved (93 K)
+  `);
+  assert.equal(evidence.nativeCompleted, true);
+  assert.deepEqual(evidence.fatalLogMatches, []);
+});
+
+test("IntelliJ stderr failures remain fatal", () => {
+  const evidence = analyzeProviderLog("intellij", `
+    [IMPORT ERR]: fatal: not a git repository
+    [IMPORT ERR]: Process 'command git' finished with non-zero exit value 128
+  `);
+  assert.deepEqual(evidence.fatalLogMatches, ["import-stderr-failure"]);
+});
+
 test("IntelliJ analyzer-only work can become a functional fallback", () => {
   const evidence = analyzeProviderLog(
     "intellij",

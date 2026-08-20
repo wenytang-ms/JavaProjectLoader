@@ -1,7 +1,10 @@
 const intellijFatalPatterns = [
   ["gradle-build-failed", /\bBUILD FAILED\b/i],
   ["maven-build-failure", /\bBUILD FAILURE\b/i],
-  ["import-error", /\[IMPORT ERR\]/i],
+  [
+    "import-stderr-failure",
+    /\[IMPORT ERR\]\s*:\s*(?:(?:ERROR|FATAL)\b|[^\r\n]*(?:exception|non-zero exit))/i,
+  ],
   ["failed-to-import", /Failed to import/i],
   ["initialization-failed", /Initialization failed/i],
   ["maven-goal-failed", /Failed to execute goal/i],
