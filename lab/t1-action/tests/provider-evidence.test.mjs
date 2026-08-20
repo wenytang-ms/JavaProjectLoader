@@ -7,6 +7,7 @@ test("IntelliJ fatal Maven evidence overrides later import markers", () => {
     [IMPORT STD]: [INFO] BUILD FAILURE
     [IMPORT STD]: [ERROR] Failed to execute goal on project kryo-benchmarks
     [IMPORT STD]: [ERROR] Could not resolve dependencies
+    [IMPORT STD]: [ERROR] Could not find artifact com.example:missing:jar:1.0
     Successfully imported C:\\kryo
     Workspace model cache saved (45 K)
   `);
@@ -15,6 +16,7 @@ test("IntelliJ fatal Maven evidence overrides later import markers", () => {
     "maven-build-failure",
     "maven-goal-failed",
     "dependency-resolution-failed",
+    "artifact-missing",
   ]);
 });
 
@@ -50,6 +52,17 @@ test("IntelliJ stderr failures remain fatal", () => {
     [IMPORT ERR]: Process 'command git' finished with non-zero exit value 128
   `);
   assert.deepEqual(evidence.fatalLogMatches, ["import-stderr-failure"]);
+});
+
+test("IntelliJ optional source and Javadoc misses are not fatal", () => {
+  const evidence = analyzeProviderLog("intellij", `
+    [IMPORT STD]: [Project Libraries] Resolution failed: sources absent:
+    Could not find artifact com.example:library:jar:sources:1.0 in central
+    Successfully imported /tmp/guava
+    Workspace model cache saved (134 K)
+  `);
+  assert.equal(evidence.nativeCompleted, true);
+  assert.deepEqual(evidence.fatalLogMatches, []);
 });
 
 test("IntelliJ analyzer-only work can become a functional fallback", () => {

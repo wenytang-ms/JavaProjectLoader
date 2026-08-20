@@ -9,7 +9,7 @@ const intellijFatalPatterns = [
   ["initialization-failed", /Initialization failed/i],
   ["maven-goal-failed", /Failed to execute goal/i],
   ["dependency-resolution-failed", /Could not resolve dependencies/i],
-  ["artifact-missing", /Could not find artifact/i],
+  ["artifact-missing", /\[ERROR\][^\r\n]*Could not find artifact/i],
 ];
 
 const jdtlsFatalPatterns = [
