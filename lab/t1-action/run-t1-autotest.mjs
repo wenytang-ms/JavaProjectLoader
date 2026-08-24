@@ -629,7 +629,7 @@ function findProviderLog(userDataDirectory, provider) {
   })?.path ?? null;
 }
 
-export function findBuildOutputLogs(userDataDirectory, provider, buildTool) {
+export function findBuildOutputLogs(userDataDirectory, provider) {
   return listFiles(userDataDirectory)
     .filter((file) => {
       const normalized = file.path.replaceAll("\\", "/");
@@ -640,13 +640,6 @@ export function findBuildOutputLogs(userDataDirectory, provider, buildTool) {
       if (provider === "intellij") {
         return /Java and Kotlin by IntelliJ IDEA.*Build\.log$/i.test(name);
       }
-      if (buildTool === "gradle") {
-        return /^(?:\d+-)?(?:Gradle for Java|Build Server for Gradle \(Build\))\.log$/i
-          .test(name);
-      }
-      if (buildTool === "maven") {
-        return /^(?:\d+-)?Maven for Java\.log$/i.test(name);
-      }
       return /^(?:\d+-)?(?:Gradle for Java|Maven for Java|Build Server for Gradle \(Build\))\.log$/i
         .test(name);
     })
@@ -654,12 +647,8 @@ export function findBuildOutputLogs(userDataDirectory, provider, buildTool) {
     .sort();
 }
 
-export function readBuildOutputEvidence(userDataDirectory, provider, buildTool) {
-  const buildOutputPaths = findBuildOutputLogs(
-    userDataDirectory,
-    provider,
-    buildTool,
-  );
+export function readBuildOutputEvidence(userDataDirectory, provider) {
+  const buildOutputPaths = findBuildOutputLogs(userDataDirectory, provider);
   const content = buildOutputPaths
     .filter((filePath) => fs.existsSync(filePath))
     .map((filePath) => fs.readFileSync(filePath, "utf8"))
@@ -706,7 +695,6 @@ async function waitForProviderLogMilestone(
   driver,
   profile,
   provider,
-  buildTool,
   timeoutMs,
   outputDirectory,
 ) {
@@ -751,7 +739,6 @@ async function waitForProviderLogMilestone(
     const buildOutput = readBuildOutputEvidence(
       profile.userDataDirectory,
       provider,
-      buildTool,
     );
     if (buildOutput.content !== lastBuildOutputContent) {
       lastBuildOutputContent = buildOutput.content;
@@ -875,7 +862,6 @@ async function waitForProviderIdle(
   driver,
   provider,
   profile,
-  buildTool,
   timeoutMs,
   outputDirectory,
   stableMs = 30_000,
@@ -901,7 +887,6 @@ async function waitForProviderIdle(
     const buildOutput = readBuildOutputEvidence(
       profile.userDataDirectory,
       provider,
-      buildTool,
     );
     const buildOutputChanged =
       buildOutput.content !== lastBuildOutputContent;
@@ -975,7 +960,6 @@ async function waitForProviderIdleAfterLog(
   driver,
   provider,
   profile,
-  buildTool,
   deadline,
   outputDirectory,
   log,
@@ -987,7 +971,6 @@ async function waitForProviderIdleAfterLog(
     driver,
     provider,
     profile,
-    buildTool,
     Math.max(0, deadline - Date.now()),
     outputDirectory,
   );
@@ -998,7 +981,6 @@ function refreshProviderLoadEvidence(
   providerLoad,
   provider,
   profile,
-  buildTool,
 ) {
   const logPath = providerLoad.log?.logPath;
   const providerLogContent =
@@ -1012,7 +994,6 @@ function refreshProviderLoadEvidence(
   const buildOutput = readBuildOutputEvidence(
     profile.userDataDirectory,
     provider,
-    buildTool,
   );
   const evidence = enrichProviderEvidence({
     provider,
@@ -1628,7 +1609,6 @@ async function main() {
       driver,
       profile,
       provider,
-      providerSetup?.buildTool ?? project.projectSetup?.buildTool ?? null,
       Math.max(0, deadline - Date.now()),
       outputDirectory,
     );
@@ -1636,7 +1616,6 @@ async function main() {
       driver,
       provider,
       profile,
-      providerSetup?.buildTool ?? project.projectSetup?.buildTool ?? null,
       deadline,
       outputDirectory,
       providerLog,
@@ -1685,7 +1664,6 @@ async function main() {
               driver,
               provider,
               profile,
-              providerSetup?.buildTool ?? project.projectSetup?.buildTool ?? null,
               Math.max(0, deadline - Date.now()),
               outputDirectory,
             ),
@@ -1695,7 +1673,6 @@ async function main() {
       finalProviderLoad,
       provider,
       profile,
-      providerSetup?.buildTool ?? project.projectSetup?.buildTool ?? null,
     );
     const classification = classifyLoadResult({
       sourceReady,

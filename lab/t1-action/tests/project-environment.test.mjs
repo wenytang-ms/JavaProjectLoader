@@ -123,7 +123,7 @@ test("IntelliJ Maven import receives the configured project JDK", () => {
   ]);
 });
 
-test("JDT LS gate discovers and analyzes Gradle Build Output", () => {
+test("JDT LS gate analyzes all Maven and Gradle Build Output", () => {
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), "t1-build-output-"));
   try {
     const outputDirectory = path.join(
@@ -135,7 +135,9 @@ test("JDT LS gate discovers and analyzes Gradle Build Output", () => {
       "output_logging_session",
     );
     fs.mkdirSync(outputDirectory, { recursive: true });
+    const mavenLog = path.join(outputDirectory, "1-Maven for Java.log");
     const gradleLog = path.join(outputDirectory, "2-Gradle for Java.log");
+    fs.writeFileSync(mavenLog, "Maven project import completed\n");
     fs.writeFileSync(
       gradleLog,
       "[error] FAILURE: Build failed with an exception.\nCONFIGURE FAILED\n",
@@ -146,11 +148,11 @@ test("JDT LS gate discovers and analyzes Gradle Build Output", () => {
     );
 
     assert.deepEqual(
-      findBuildOutputLogs(userData, "jdtls", "gradle"),
-      [gradleLog],
+      findBuildOutputLogs(userData, "jdtls"),
+      [mavenLog, gradleLog],
     );
-    const evidence = readBuildOutputEvidence(userData, "jdtls", "gradle");
-    assert.deepEqual(evidence.buildOutputPaths, [gradleLog]);
+    const evidence = readBuildOutputEvidence(userData, "jdtls");
+    assert.deepEqual(evidence.buildOutputPaths, [mavenLog, gradleLog]);
     assert.deepEqual(evidence.fatalBuildOutputMatches, [
       "gradle-build-failed",
     ]);
