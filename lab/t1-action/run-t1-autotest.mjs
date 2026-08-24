@@ -9,6 +9,7 @@ import {
   downloadAndUnzipVSCode,
   resolveCliArgsFromVSCodeExecutablePath,
 } from "@vscode/test-electron";
+import { writeJsonArtifact as writeJson } from "./artifact-writer.mjs";
 import { loadProjects } from "./create-matrix.mjs";
 import {
   createProjectSettings,
@@ -424,11 +425,6 @@ function createSyntheticMavenWorkspace(project, checkoutPath, workspacePath) {
 </project>
 `,
   );
-}
-
-function writeJson(filePath, value) {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
 async function wait(milliseconds) {
