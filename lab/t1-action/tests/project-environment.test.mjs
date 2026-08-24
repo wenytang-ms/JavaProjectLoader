@@ -15,6 +15,7 @@ import {
   applyWindowsJavaToolCopies,
   applyWindowsTextReplacements,
   configureGradleToolchainEnvironment,
+  captureStableDiagnostics,
   findBuildOutputLogs,
   gradleSiblingProjectSettings,
   materializeWorkspace,
@@ -92,6 +93,7 @@ test("Gradle discovery verifies the pinned wrapper and JDT LS settings", () => {
     assert.equal(settings["java.jdt.ls.java.home"], "C:\\jdks\\21");
     assert.equal(settings["java.import.gradle.enabled"], true);
     assert.equal(settings["java.import.maven.enabled"], false);
+    assert.match(settings["java.jdt.ls.vmargs"], /-Xmx4G/);
   } finally {
     fs.rmSync(fixture, { recursive: true, force: true });
   }
@@ -111,6 +113,11 @@ test("IntelliJ Maven import receives the configured project JDK", () => {
     workspace,
   );
 
+  assert.equal(settings["intellij.buildTool"], "maven");
+  assert.equal(
+    settings["intellij.jdkForSymbolResolution"],
+    projectJavaHome,
+  );
   assert.deepEqual(settings["intellij.projects"], [
     {
       type: "maven",
@@ -121,6 +128,40 @@ test("IntelliJ Maven import receives the configured project JDK", () => {
       "java-home": projectJavaHome,
     },
   ]);
+});
+
+test("IntelliJ Gradle import receives the configured project JDK", () => {
+  const project = loadProjects().find((entry) => entry.id === "rxjava");
+  const workspace = path.join(os.tmpdir(), "t1-intellij-gradle-workspace");
+  const projectJavaHome = path.join(os.tmpdir(), "jdks", "26");
+  const settings = createProjectSettings(
+    project,
+    "intellij",
+    {},
+    { T1_PROJECT_JAVA_HOME: projectJavaHome },
+    workspace,
+  );
+
+  assert.equal(settings["intellij.buildTool"], "gradle");
+  assert.equal(
+    settings["intellij.jdkForSymbolResolution"],
+    projectJavaHome,
+  );
+  assert.deepEqual(settings["intellij.projects"], [
+    {
+      type: "gradle",
+      path: pathToFileURL(workspace).href,
+    },
+  ]);
+});
+
+test("Guava disables auxiliary Gradle discovery for its Maven contract", () => {
+  const project = loadProjects().find((entry) => entry.id === "guava");
+  const settings = createProjectSettings(project, "jdtls", {}, {});
+
+  assert.equal(settings["gradle.autoDetect"], "off");
+  assert.equal(settings["gradle.nestedProjects"], false);
+  assert.equal(settings["java.gradle.buildServer.enabled"], "off");
 });
 
 test("JDT LS gate analyzes all Maven and Gradle Build Output", () => {
@@ -296,14 +337,17 @@ test("Windows Java tool copies expose tools Gradle cannot detect", () => {
   }
 });
 
-test("materialized workspaces preserve setup files without Git metadata", () => {
+test("materialized workspaces preserve setup files and Git metadata", () => {
   const source = fs.mkdtempSync(path.join(os.tmpdir(), "t1-materialize-source-"));
   const target = fs.mkdtempSync(path.join(os.tmpdir(), "t1-materialize-target-"));
   try {
     writeFixture(source, ".git/config", "git metadata");
     writeFixture(source, "SharedModules/core_settings.gradle", "configured");
     materializeWorkspace(source, target);
-    assert.equal(fs.existsSync(path.join(target, ".git")), false);
+    assert.equal(
+      fs.readFileSync(path.join(target, ".git", "config"), "utf8"),
+      "git metadata",
+    );
     assert.equal(
       fs.readFileSync(
         path.join(target, "SharedModules", "core_settings.gradle"),
@@ -314,6 +358,52 @@ test("materialized workspaces preserve setup files without Git metadata", () => 
   } finally {
     fs.rmSync(source, { recursive: true, force: true });
     fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test("T1 gate captures stable workspace diagnostics", async () => {
+  const outputDirectory = fs.mkdtempSync(
+    path.join(os.tmpdir(), "t1-workspace-diagnostics-"),
+  );
+  try {
+    const driver = {
+      async executeVSCodeCommand(command, options) {
+        assert.equal(command, "javaImportBenchmark.captureDiagnostics");
+        assert.equal(options.scope, "workspace");
+        fs.writeFileSync(
+          options.resultPath,
+          JSON.stringify({
+            scope: options.scope,
+            stable: true,
+            counts: {
+              error: 1,
+              warning: 2,
+              information: 0,
+              hint: 0,
+            },
+            files: [],
+            diagnostics: [
+              {
+                relativePath: "src/main/java/example/Example.java",
+                severity: "error",
+              },
+            ],
+          }),
+        );
+      },
+    };
+
+    const diagnostics = await captureStableDiagnostics(
+      driver,
+      ["src/main/java/example/Example.java"],
+      outputDirectory,
+    );
+    assert.equal(diagnostics.scope, "workspace");
+    assert.equal(diagnostics.stable, true);
+    assert.equal(diagnostics.counts.error, 1);
+    assert.equal(diagnostics.diagnosticsCaptured, true);
+  } finally {
+    fs.rmSync(outputDirectory, { recursive: true, force: true });
   }
 });
 

@@ -310,7 +310,6 @@ export function materializeWorkspace(sourcePath, targetPath) {
   fs.rmSync(targetPath, { recursive: true, force: true });
   fs.cpSync(sourcePath, targetPath, {
     recursive: true,
-    filter: (currentPath) => path.basename(currentPath) !== ".git",
   });
   return targetPath;
 }
@@ -1038,10 +1037,11 @@ function refreshProviderLoadEvidence(
   };
 }
 
-async function captureStableDiagnostics(
+export async function captureStableDiagnostics(
   driver,
   relativeFiles,
   outputDirectory,
+  scope = "workspace",
 ) {
   const resultPath = path.join(outputDirectory, "diagnostics-result.json");
   fs.rmSync(resultPath, { force: true });
@@ -1051,7 +1051,7 @@ async function captureStableDiagnostics(
     await driver.executeVSCodeCommand(
       "javaImportBenchmark.captureDiagnostics",
       {
-        scope: "probe-files",
+        scope,
         relativeFiles,
         resultPath,
         stableMs,
@@ -1061,7 +1061,7 @@ async function captureStableDiagnostics(
   } catch (error) {
     return {
       stable: false,
-      scope: "probe-files",
+      scope,
       counts: { error: 0, warning: 0, information: 0, hint: 0 },
       diagnosticsCaptured: false,
       error: error instanceof Error ? error.stack : String(error),
@@ -1069,14 +1069,17 @@ async function captureStableDiagnostics(
   }
 
   const waitStartedAt = Date.now();
-  const waitTimeoutMs = relativeFiles.length * (timeoutMs + stableMs) + 60_000;
+  const waitTimeoutMs =
+    scope === "workspace"
+      ? timeoutMs + stableMs + 60_000
+      : relativeFiles.length * (timeoutMs + stableMs) + 60_000;
   while (!fs.existsSync(resultPath) && Date.now() - waitStartedAt < waitTimeoutMs) {
     await wait(1000);
   }
   if (!fs.existsSync(resultPath)) {
     return {
       stable: false,
-      scope: "probe-files",
+      scope,
       counts: { error: 0, warning: 0, information: 0, hint: 0 },
       diagnosticsCaptured: false,
       error: `Diagnostic result was not written within ${waitTimeoutMs}ms`,
@@ -1699,12 +1702,12 @@ async function main() {
       failedPhase: classification.failedPhase,
       errorCount,
       warningCount,
-      diagnosticScope: diagnostics.scope ?? "probe-files",
+      diagnosticScope: diagnostics.scope ?? "workspace",
       diagnosticsCaptured: diagnostics.diagnosticsCaptured,
       diagnosticsStable: diagnostics.stable,
       diagnosticFiles,
       diagnosticSummary: {
-        scope: diagnostics.scope ?? "probe-files",
+        scope: diagnostics.scope ?? "workspace",
         stable: diagnostics.stable,
         counts: diagnostics.counts,
         durationMs: diagnostics.durationMs ?? null,
@@ -1761,6 +1764,8 @@ async function main() {
         "",
       documentSymbolReady: sourceResult.documentSymbolReady === true,
       hoverReady: sourceResult.hoverReady === true,
+      diagnosticScope: diagnostics.scope ?? "workspace",
+      diagnosticsCaptured: diagnostics.diagnosticsCaptured,
       diagnosticsStable: diagnostics.stable,
       errorCount,
       warningCount,

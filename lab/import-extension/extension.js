@@ -93,11 +93,21 @@ function diagnosticFingerprint(diagnostics) {
   ]));
 }
 
-function serializeWorkspaceDiagnostics() {
+function serializeWorkspaceDiagnostics(workspaceFolder) {
   const diagnostics = [];
   for (const [uri, items] of vscode.languages.getDiagnostics()) {
+    const diagnosticWorkspace = vscode.workspace.getWorkspaceFolder(uri);
+    if (
+      diagnosticWorkspace?.uri.toString() !== workspaceFolder.uri.toString()
+    ) {
+      continue;
+    }
+    const relativePath = vscode.workspace
+      .asRelativePath(uri, false)
+      .replaceAll("\\", "/");
     diagnostics.push(...items.map((item) => ({
       uri: uri.toString(),
+      relativePath,
       severity:
         item.severity === vscode.DiagnosticSeverity.Error
           ? "error"
@@ -115,7 +125,24 @@ function serializeWorkspaceDiagnostics() {
       endCharacter: item.range.end.character,
     })));
   }
-  return diagnostics;
+  return diagnostics.sort((left, right) =>
+    JSON.stringify([
+      left.uri,
+      left.startLine,
+      left.startCharacter,
+      left.endLine,
+      left.endCharacter,
+      left.severity,
+      left.message,
+    ]).localeCompare(JSON.stringify([
+      right.uri,
+      right.startLine,
+      right.startCharacter,
+      right.endLine,
+      right.endCharacter,
+      right.severity,
+      right.message,
+    ])));
 }
 
 async function waitForStableDiagnostics(readDiagnostics, stableMs, timeoutMs) {
@@ -177,7 +204,7 @@ async function captureDiagnostics(options = {}) {
 
   if (scope === "workspace") {
     workspaceObservation = await waitForStableDiagnostics(
-      serializeWorkspaceDiagnostics,
+      () => serializeWorkspaceDiagnostics(workspaceFolder),
       stableMs,
       timeoutMs,
     );

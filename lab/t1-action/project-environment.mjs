@@ -554,17 +554,24 @@ export function createProjectSettings(
   if (provider !== "jdtls") {
     const settings = { ...providerSetup.vscodeSettings };
     const projectJavaHome = environment.T1_PROJECT_JAVA_HOME;
-    if (setup.buildTool === "maven" && projectJavaHome && workspacePath) {
-      settings["intellij.projects"] = [
-        {
-          type: "maven",
-          path: pathToFileURL(workspacePath).href,
+    settings["intellij.buildTool"] = setup.buildTool;
+    if (projectJavaHome) {
+      settings["intellij.jdkForSymbolResolution"] = projectJavaHome;
+    }
+    if (workspacePath) {
+      const configuredProject = {
+        type: setup.buildTool,
+        path: pathToFileURL(workspacePath).href,
+      };
+      if (setup.buildTool === "maven" && projectJavaHome) {
+        Object.assign(configuredProject, {
           env: {
             JAVA_HOME: projectJavaHome,
           },
           "java-home": projectJavaHome,
-        },
-      ];
+        });
+      }
+      settings["intellij.projects"] = [configuredProject];
     }
     return settings;
   }

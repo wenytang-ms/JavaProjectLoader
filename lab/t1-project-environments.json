@@ -386,7 +386,8 @@
           "vscodeSettings": {
             "java.import.maven.enabled": false,
             "java.import.gradle.enabled": true,
-            "java.import.gradle.wrapper.enabled": true
+            "java.import.gradle.wrapper.enabled": true,
+            "java.jdt.ls.vmargs": "-XX:+UseParallelGC -XX:GCTimeRatio=4 -XX:AdaptiveSizePolicyWeight=90 -Dsun.zip.disableMemoryMapping=true -Xmx4G -Xms100m -Xlog:disable"
           }
         },
         "intellij": {
@@ -454,7 +455,10 @@
           },
           "vscodeSettings": {
             "java.import.maven.enabled": true,
-            "java.import.gradle.enabled": false
+            "java.import.gradle.enabled": false,
+            "gradle.autoDetect": "off",
+            "gradle.nestedProjects": false,
+            "java.gradle.buildServer.enabled": "off"
           }
         },
         "intellij": {
