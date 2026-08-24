@@ -61,7 +61,7 @@
     "relativeFile": "src/main/java/io/reactivex/rxjava4/core/Flowable.java",
     "sourceSymbol": "Flowable",
     "javaVersion": "26",
-    "timeoutSeconds": 1200,
+    "timeoutSeconds": 3600,
     "batch": 1,
     "t1Eligible": true
   },
@@ -947,7 +947,7 @@
     "relativeFile": "plugins/beam-code-completion-plugin/src/main/java/BeamCompletionProvider.java",
     "sourceSymbol": "BeamCompletionProvider",
     "javaVersion": "21",
-    "timeoutSeconds": 1500,
+    "timeoutSeconds": 3600,
     "batch": 4,
     "t1Eligible": true
   },

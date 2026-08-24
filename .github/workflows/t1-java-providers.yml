@@ -76,7 +76,7 @@ jobs:
   t1:
     name: T1 / ${{ matrix.project.id }} / ${{ matrix.provider }} / ${{ matrix.os }}
     needs: prepare
-    timeout-minutes: 50
+    timeout-minutes: 80
     strategy:
       fail-fast: false
       max-parallel: 20

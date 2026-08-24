@@ -93,21 +93,41 @@ function diagnosticFingerprint(diagnostics) {
   ]));
 }
 
-function serializeWorkspaceDiagnostics(workspaceFolder) {
+function sortDiagnostics(diagnostics) {
+  return diagnostics.sort((left, right) =>
+    JSON.stringify([
+      left.uri,
+      left.startLine,
+      left.startCharacter,
+      left.endLine,
+      left.endCharacter,
+      left.severity,
+      left.message,
+    ]).localeCompare(
+      JSON.stringify([
+        right.uri,
+        right.startLine,
+        right.startCharacter,
+        right.endLine,
+        right.endCharacter,
+        right.severity,
+        right.message,
+      ]),
+    ),
+  );
+}
+
+function collectWorkspaceDiagnostics() {
   const diagnostics = [];
+  const excludedDiagnostics = [];
   for (const [uri, items] of vscode.languages.getDiagnostics()) {
     const diagnosticWorkspace = vscode.workspace.getWorkspaceFolder(uri);
-    if (
-      diagnosticWorkspace?.uri.toString() !== workspaceFolder.uri.toString()
-    ) {
-      continue;
-    }
-    const relativePath = vscode.workspace
-      .asRelativePath(uri, false)
-      .replaceAll("\\", "/");
-    diagnostics.push(...items.map((item) => ({
+    const serialized = items.map((item) => ({
       uri: uri.toString(),
-      relativePath,
+      relativePath: diagnosticWorkspace
+        ? vscode.workspace.asRelativePath(uri, false).replaceAll("\\", "/")
+        : null,
+      workspaceFolderUri: diagnosticWorkspace?.uri.toString() ?? null,
       severity:
         item.severity === vscode.DiagnosticSeverity.Error
           ? "error"
@@ -123,26 +143,27 @@ function serializeWorkspaceDiagnostics(workspaceFolder) {
       startCharacter: item.range.start.character,
       endLine: item.range.end.line,
       endCharacter: item.range.end.character,
-    })));
+    }));
+    if (diagnosticWorkspace) {
+      diagnostics.push(...serialized);
+    } else {
+      excludedDiagnostics.push(...serialized);
+    }
   }
-  return diagnostics.sort((left, right) =>
-    JSON.stringify([
-      left.uri,
-      left.startLine,
-      left.startCharacter,
-      left.endLine,
-      left.endCharacter,
-      left.severity,
-      left.message,
-    ]).localeCompare(JSON.stringify([
-      right.uri,
-      right.startLine,
-      right.startCharacter,
-      right.endLine,
-      right.endCharacter,
-      right.severity,
-      right.message,
-    ])));
+  return {
+    diagnostics: sortDiagnostics(diagnostics),
+    excludedDiagnostics: sortDiagnostics(excludedDiagnostics),
+  };
+}
+
+function diagnosticCounts(diagnostics) {
+  return {
+    error: diagnostics.filter((item) => item.severity === "error").length,
+    warning: diagnostics.filter((item) => item.severity === "warning").length,
+    information:
+      diagnostics.filter((item) => item.severity === "information").length,
+    hint: diagnostics.filter((item) => item.severity === "hint").length,
+  };
 }
 
 async function waitForStableDiagnostics(readDiagnostics, stableMs, timeoutMs) {
@@ -204,7 +225,7 @@ async function captureDiagnostics(options = {}) {
 
   if (scope === "workspace") {
     workspaceObservation = await waitForStableDiagnostics(
-      () => serializeWorkspaceDiagnostics(workspaceFolder),
+      () => collectWorkspaceDiagnostics().diagnostics,
       stableMs,
       timeoutMs,
     );
@@ -249,9 +270,16 @@ async function captureDiagnostics(options = {}) {
             ...diagnostic,
           })),
         );
+  const excludedDiagnostics =
+    scope === "workspace"
+      ? collectWorkspaceDiagnostics().excludedDiagnostics
+      : [];
   const result = {
     schemaVersion: 1,
     scope,
+    workspaceFolders: (vscode.workspace.workspaceFolders ?? []).map(
+      (folder) => folder.uri.toString(),
+    ),
     startedAt: new Date(startedAt).toISOString(),
     completedAt: new Date().toISOString(),
     durationMs: Date.now() - startedAt,
@@ -259,15 +287,11 @@ async function captureDiagnostics(options = {}) {
       scope === "workspace"
         ? workspaceObservation.stable
         : files.every((file) => file.stable),
-    counts: {
-      error: diagnostics.filter((item) => item.severity === "error").length,
-      warning: diagnostics.filter((item) => item.severity === "warning").length,
-      information:
-        diagnostics.filter((item) => item.severity === "information").length,
-      hint: diagnostics.filter((item) => item.severity === "hint").length,
-    },
+    counts: diagnosticCounts(diagnostics),
+    excludedCounts: diagnosticCounts(excludedDiagnostics),
     files,
     diagnostics,
+    excludedDiagnostics,
   };
   writeResult(resultPath, result);
 }

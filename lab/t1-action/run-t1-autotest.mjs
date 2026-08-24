@@ -25,6 +25,7 @@ import {
   analyzeBuildOutput,
   analyzeProviderLog,
   analyzeProviderStatus,
+  analyzeStatusProblemCounts,
   combinedFatalEvidence,
 } from "./provider-evidence.mjs";
 
@@ -670,6 +671,7 @@ function enrichProviderEvidence({
     buildOutputPaths: buildOutput.buildOutputPaths,
     fatalBuildOutputMatches: buildOutput.fatalBuildOutputMatches,
     fatalStatusMatches: analyzeProviderStatus(provider, statusBarText),
+    statusProblemCounts: analyzeStatusProblemCounts(statusBarText),
   };
   return {
     ...evidence,
@@ -1762,6 +1764,8 @@ async function main() {
         providerLoad.ui?.finalStatusBarText ??
         providerLoad.log?.statusBarText ??
         "",
+      statusProblemCounts:
+        providerLoad.log?.statusProblemCounts ?? null,
       documentSymbolReady: sourceResult.documentSymbolReady === true,
       hoverReady: sourceResult.hoverReady === true,
       diagnosticScope: diagnostics.scope ?? "workspace",

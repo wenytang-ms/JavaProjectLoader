@@ -61,11 +61,50 @@ export function analyzeBuildOutput(content = "") {
   return matchingNames(String(content), buildOutputFatalPatterns);
 }
 
+function parseAbbreviatedCount(value) {
+  const match = String(value).match(/^(\d+(?:\.\d+)?)([KMG])?$/i);
+  if (!match) {
+    return null;
+  }
+  const multipliers = {
+    K: 1_000,
+    M: 1_000_000,
+    G: 1_000_000_000,
+  };
+  return Math.round(
+    Number(match[1]) * (multipliers[match[2]?.toUpperCase()] ?? 1),
+  );
+}
+
+export function analyzeStatusProblemCounts(statusBarText = "") {
+  for (const segment of String(statusBarText).split("|")) {
+    const normalized = segment.trim();
+    const match = normalized.match(
+      /^(\d+(?:\.\d+)?[KMG]?)\s+(\d+(?:\.\d+)?[KMG]?)(?:\s+(\d+(?:\.\d+)?[KMG]?))?$/i,
+    );
+    if (!match) {
+      continue;
+    }
+    return {
+      raw: normalized,
+      errorCount: parseAbbreviatedCount(match[1]),
+      warningCount: parseAbbreviatedCount(match[2]),
+      informationCount: parseAbbreviatedCount(match[3] ?? "0"),
+    };
+  }
+  return null;
+}
+
 export function analyzeProviderStatus(provider, statusBarText = "") {
-  return matchingNames(
-    String(statusBarText),
+  const text = String(statusBarText);
+  const matches = matchingNames(
+    text,
     providerStatusFatalPatterns[provider] ?? [],
   );
+  if ((analyzeStatusProblemCounts(text)?.errorCount ?? 0) > 0) {
+    matches.push("workspace-problems-errors");
+  }
+  return [...new Set(matches)];
 }
 
 export function combinedFatalEvidence(evidence) {

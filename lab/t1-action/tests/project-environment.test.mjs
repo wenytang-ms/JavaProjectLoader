@@ -38,6 +38,7 @@ test("workflow limits each twenty-five-project batch to twenty parallel jobs", (
     "utf8",
   );
   assert.match(workflow, /max-parallel: 20/);
+  assert.match(workflow, /timeout-minutes: 80/);
   assert.match(workflow, /--batch "\$\{\{ inputs\.batch \}\}"/);
   assert.match(workflow, /t1-aggregate-conclusion-batch-/);
   assert.match(workflow, /overwrite-settings: false/);
@@ -54,11 +55,21 @@ test("every project exposes complete provider host requirements", () => {
         provider,
         dryRun: true,
       });
+
       assert.equal(plan.status, "planned");
       assert.equal(plan.requirements.projectJava.version, project.javaVersion);
       assert.match(plan.requirements.buildTool, /^(gradle|maven)$/);
     }
   }
+});
+
+test("large calibration projects receive a sixty-minute gate", () => {
+  const projects = new Map(
+    loadProjects().map((project) => [project.id, project]),
+  );
+  assert.equal(projects.get("rxjava").timeoutSeconds, 3600);
+  assert.equal(projects.get("beam").timeoutSeconds, 3600);
+  assert.equal(projects.get("kryo").timeoutSeconds, 900);
 });
 
 test("Gradle discovery verifies the pinned wrapper and JDT LS settings", () => {

@@ -4,6 +4,7 @@ import {
   analyzeBuildOutput,
   analyzeProviderLog,
   analyzeProviderStatus,
+  analyzeStatusProblemCounts,
   combinedFatalEvidence,
 } from "../provider-evidence.mjs";
 
@@ -118,13 +119,73 @@ test("JDT LS Ready cannot override a Gradle build error", () => {
     "jdtls",
     "9K 1K 914 | Java: Ready | Gradle: Build Error",
   );
-  assert.deepEqual(fatalStatusMatches, ["gradle-build-error"]);
+  assert.deepEqual(fatalStatusMatches, [
+    "gradle-build-error",
+    "workspace-problems-errors",
+  ]);
   assert.deepEqual(
     combinedFatalEvidence({
       fatalLogMatches: [],
       fatalBuildOutputMatches: ["gradle-build-failed"],
       fatalStatusMatches,
     }),
-    ["gradle-build-failed", "gradle-build-error"],
+    [
+      "gradle-build-failed",
+      "gradle-build-error",
+      "workspace-problems-errors",
+    ],
+  );
+});
+
+test("status Problems errors are fatal even when Java is Ready", () => {
+  assert.deepEqual(
+    analyzeStatusProblemCounts(
+      "40e7de08 | 9K 1K 914 | Java: Ready | Java | CRLF",
+    ),
+    {
+      raw: "9K 1K 914",
+      errorCount: 9000,
+      warningCount: 1000,
+      informationCount: 914,
+    },
+  );
+  assert.deepEqual(
+    analyzeProviderStatus(
+      "jdtls",
+      "40e7de08 | 9K 1K 914 | Java: Ready | Java | CRLF",
+    ),
+    ["workspace-problems-errors"],
+  );
+});
+
+test("status Problems warnings do not fail the gate", () => {
+  assert.deepEqual(
+    analyzeStatusProblemCounts(
+      "22a34127 | 0 223 | Java: Ready | Java | CRLF",
+    ),
+    {
+      raw: "0 223",
+      errorCount: 0,
+      warningCount: 223,
+      informationCount: 0,
+    },
+  );
+  assert.deepEqual(
+    analyzeProviderStatus(
+      "jdtls",
+      "22a34127 | 0 223 | Java: Ready | Java | CRLF",
+    ),
+    [],
+  );
+});
+
+test("in-progress builder text is not a final Problems count", () => {
+  assert.deepEqual(
+    analyzeProviderStatus(
+      "jdtls",
+      "4e481d50 | 0 0 | Java: Building - 50% " +
+        "(Found 1416 errors + 3 warnings)",
+    ),
+    [],
   );
 });
