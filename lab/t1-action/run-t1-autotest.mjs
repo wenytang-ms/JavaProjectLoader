@@ -17,7 +17,6 @@ import {
 } from "./project-environment.mjs";
 import {
   buildProviderLoadResult,
-  classifyLoadResult,
   detectProviderTerminalState,
   isProviderBusy,
 } from "./result-classification.mjs";
@@ -27,7 +26,14 @@ import {
   analyzeProviderStatus,
   analyzeStatusProblemCounts,
   combinedFatalEvidence,
+  providerEvidenceVersions,
 } from "./provider-evidence.mjs";
+import {
+  createNormalizedEvidence,
+  evaluateT1,
+  T1_COLLECTOR_VERSION,
+  T1_RULE_VERSION,
+} from "./t1-evaluator.mjs";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(scriptDir, "..", "..");
@@ -92,6 +98,20 @@ function run(command, args, options = {}) {
     );
   }
   return result.stdout ?? "";
+}
+
+function readHarnessCommit({ required = false } = {}) {
+  try {
+    return run("git", ["rev-parse", "HEAD"], {
+      cwd: repositoryRoot,
+      capture: true,
+    }).trim();
+  } catch (error) {
+    if (required) {
+      throw error;
+    }
+    return null;
+  }
 }
 
 async function downloadFile(url, filePath) {
@@ -1119,6 +1139,126 @@ function appendGithubSummary(result) {
   );
 }
 
+export function writeOuterRunnerFailure(outputDirectory, caught) {
+  const existingResultPath = path.join(outputDirectory, "result.json");
+  let existingResult = null;
+  let existingResultError = null;
+  if (fs.existsSync(existingResultPath)) {
+    try {
+      existingResult = JSON.parse(
+        fs.readFileSync(existingResultPath, "utf8"),
+      );
+    } catch (error) {
+      existingResultError =
+        error instanceof Error ? error.stack : String(error);
+    }
+  }
+  const project =
+    argument("--project", process.env.T1_PROJECT) ??
+    existingResult?.project ??
+    null;
+  const provider =
+    argument("--provider", process.env.T1_PROVIDER) ??
+    existingResult?.product ??
+    existingResult?.provider ??
+    null;
+  const harnessCommit =
+    readHarnessCommit() ?? existingResult?.harnessCommit ?? null;
+  const harnessError = [
+    caught instanceof Error ? caught.stack : String(caught),
+    existingResultError
+      ? `Unable to read existing result.json:\n${existingResultError}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+  const operatingSystem =
+    process.env.T1_OPERATING_SYSTEM ??
+    existingResult?.operatingSystem ??
+    process.platform;
+  const adapterVersion =
+    providerEvidenceVersions[provider] ??
+    existingResult?.adapterVersion ??
+    "unknown";
+  const failedAt = new Date();
+  const normalizedEvidence = createNormalizedEvidence({
+    project,
+    provider,
+    operatingSystem,
+    effectiveTimeoutSeconds: 0,
+    providerLoad: {
+      loaded: false,
+      importCompleted: false,
+      importStatus: "not-loaded",
+      terminalState: null,
+      log: {},
+      ui: null,
+    },
+    sourceResult: {
+      status: "failure",
+      sourceAttempts: 0,
+      documentSymbolReady: false,
+      hoverReady: false,
+      failureCategory: "runner-error",
+      error: harnessError,
+    },
+    sourceReady: false,
+    diagnostics: {
+      scope: "unknown",
+      stable: false,
+      diagnosticsCaptured: false,
+      counts: {
+        error: 0,
+        warning: 0,
+        information: 0,
+        hint: 0,
+      },
+    },
+    harnessError,
+    harnessCommit,
+    adapterVersion,
+  });
+  const classification = evaluateT1(normalizedEvidence);
+  const result = {
+    schemaVersion: 2,
+    ruleVersion: T1_RULE_VERSION,
+    collectorVersion: T1_COLLECTOR_VERSION,
+    harnessCommit,
+    adapterVersion,
+    project,
+    product: provider,
+    verdict: classification.verdict,
+    status: classification.status,
+    operatingSystem,
+    sourceReady: false,
+    providerLoaded: false,
+    providerImportCompleted: false,
+    providerImportStatus: "not-loaded",
+    providerTerminalState: null,
+    providerState: normalizedEvidence.providerEvidence.state,
+    projectHealth: normalizedEvidence.projectEvidence.health,
+    semanticState: normalizedEvidence.semanticEvidence.state,
+    diagnosticState: normalizedEvidence.diagnosticEvidence.state,
+    reasonCodes: classification.reasonCodes,
+    loadSuccessful: classification.loadSuccessful,
+    loadStatus: classification.loadStatus,
+    failureCategory: classification.failureCategory,
+    failedPhase: classification.failedPhase,
+    errorCount: 0,
+    warningCount: 0,
+    diagnosticsCaptured: false,
+    completedAt: failedAt.toISOString(),
+    totalDurationMs: failedAt.getTime() - scriptStartedAt,
+    error: harnessError,
+  };
+  writeJson(
+    path.join(outputDirectory, "normalized-evidence.json"),
+    normalizedEvidence,
+  );
+  writeJson(path.join(outputDirectory, "result.json"), result);
+  return result;
+}
+
 function getTestProfilePaths(vscodeExecutablePath) {
   const [, ...baseArgs] =
     resolveCliArgsFromVSCodeExecutablePath(vscodeExecutablePath);
@@ -1323,7 +1463,11 @@ function copyEvidenceFile(source, target, copied, skipped) {
   copied.push({ path: target, bytes });
 }
 
-function collectProfileEvidence(profile, outputDirectory) {
+function collectProfileEvidence(
+  profile,
+  outputDirectory,
+  provenance = {},
+) {
   const copied = [];
   const skipped = [];
   const userDataFiles = listFiles(profile.userDataDirectory);
@@ -1373,6 +1517,8 @@ function collectProfileEvidence(profile, outputDirectory) {
       .sort((left, right) => right.bytes - left.bytes),
   });
   writeJson(path.join(outputDirectory, "evidence-manifest.json"), {
+    schemaVersion: 2,
+    ...provenance,
     generatedAt: new Date().toISOString(),
     copied,
     skipped,
@@ -1416,6 +1562,7 @@ async function main() {
   if (!project) {
     throw new Error(`Unknown project: ${projectId}`);
   }
+  const harnessCommit = readHarnessCommit({ required: true });
   const outputDirectory = path.resolve(
     process.env.T1_OUTPUT_DIR ??
     path.join(scriptDir, "results", project.id, provider, process.platform),
@@ -1679,25 +1826,43 @@ async function main() {
       provider,
       profile,
     );
-    const classification = classifyLoadResult({
-      sourceReady,
-      sourceFailureCategory: sourceResult.failureCategory,
+    const normalizedEvidence = createNormalizedEvidence({
+      project: project.id,
+      provider,
+      operatingSystem:
+        process.env.T1_OPERATING_SYSTEM ?? process.platform,
+      effectiveTimeoutSeconds,
       providerLoad,
-      diagnosticsStable: diagnostics.stable,
-      errorCount,
+      sourceResult,
+      sourceReady,
+      diagnostics,
+      harnessCommit,
+      adapterVersion: providerEvidenceVersions[provider],
     });
+    const classification = evaluateT1(normalizedEvidence);
     const successful = classification.successful;
     const completedAt = new Date();
     finalResult = {
       ...sourceResult,
+      schemaVersion: 2,
+      ruleVersion: T1_RULE_VERSION,
+      collectorVersion: T1_COLLECTOR_VERSION,
+      harnessCommit,
+      adapterVersion: providerEvidenceVersions[provider],
       operatingSystem: process.env.T1_OPERATING_SYSTEM ?? process.platform,
       effectiveTimeoutSeconds,
-      status: successful ? "success" : "failure",
+      verdict: classification.verdict,
+      status: classification.status,
       sourceReady,
       providerLoaded: providerLoad.loaded,
       providerImportCompleted: providerLoad.importCompleted,
       providerImportStatus: providerLoad.importStatus,
       providerTerminalState: providerLoad.terminalState,
+      providerState: normalizedEvidence.providerEvidence.state,
+      projectHealth: normalizedEvidence.projectEvidence.health,
+      semanticState: normalizedEvidence.semanticEvidence.state,
+      diagnosticState: normalizedEvidence.diagnosticEvidence.state,
+      reasonCodes: classification.reasonCodes,
       loadSuccessful: successful,
       loadStatus: classification.loadStatus,
       failureCategory: classification.failureCategory,
@@ -1741,7 +1906,11 @@ async function main() {
           `Load result failed: ${classification.failureCategory}`,
     };
     const ruleEvidence = {
-      schemaVersion: 1,
+      schemaVersion: 2,
+      ruleVersion: T1_RULE_VERSION,
+      collectorVersion: T1_COLLECTOR_VERSION,
+      harnessCommit,
+      adapterVersion: providerEvidenceVersions[provider],
       provider,
       effectiveTimeoutSeconds,
       fatalLogMatches: providerLoad.log?.fatalLogMatches ?? [],
@@ -1775,8 +1944,14 @@ async function main() {
       warningCount,
       result: successful ? "PASS" : "FAIL",
       failureCategory: classification.failureCategory,
+      failedPhase: classification.failedPhase,
+      reasonCodes: classification.reasonCodes,
       measuredAt: completedAt.toISOString(),
     };
+    writeJson(
+      path.join(outputDirectory, "normalized-evidence.json"),
+      normalizedEvidence,
+    );
     writeJson(resultPath, finalResult);
     writeJson(path.join(outputDirectory, "rule-evidence.json"), ruleEvidence);
     await saveScreenshot(driver, outputDirectory, "07-load-result");
@@ -1786,6 +1961,13 @@ async function main() {
       providerLoaded: finalResult.providerLoaded,
       providerImportStatus: finalResult.providerImportStatus,
       providerTerminalState: finalResult.providerTerminalState,
+      providerState: finalResult.providerState,
+      projectHealth: finalResult.projectHealth,
+      semanticState: finalResult.semanticState,
+      diagnosticState: finalResult.diagnosticState,
+      verdict: finalResult.verdict,
+      reasonCodes: finalResult.reasonCodes,
+      ruleVersion: finalResult.ruleVersion,
       loadStatus: finalResult.loadStatus,
       errorCount,
       warningCount,
@@ -1817,31 +1999,92 @@ async function main() {
             product: provider,
           };
     const completedAt = new Date();
+    const harnessError =
+      caught instanceof Error ? caught.stack : String(caught);
+    const normalizedEvidence = createNormalizedEvidence({
+      project: project.id,
+      provider,
+      operatingSystem:
+        process.env.T1_OPERATING_SYSTEM ?? process.platform,
+      effectiveTimeoutSeconds,
+      providerLoad: {
+        loaded: existingResult.providerLoaded === true,
+        importCompleted:
+          existingResult.providerImportCompleted === true,
+        importStatus:
+          existingResult.providerImportStatus ?? "not-loaded",
+        terminalState:
+          existingResult.providerTerminalState ?? null,
+        log: existingResult.providerLoad?.log ?? {},
+        ui: existingResult.providerLoad?.ui ?? null,
+      },
+      sourceResult: existingResult,
+      sourceReady: Boolean(existingResult.sourceReadyAt),
+      diagnostics: {
+        scope: existingResult.diagnosticScope ?? "unknown",
+        stable: existingResult.diagnosticsStable === true,
+        diagnosticsCaptured:
+          existingResult.diagnosticsCaptured === true,
+        counts: {
+          error: existingResult.errorCount ?? 0,
+          warning: existingResult.warningCount ?? 0,
+        },
+      },
+      harnessError,
+      harnessCommit,
+      adapterVersion: providerEvidenceVersions[provider],
+    });
+    const classification = evaluateT1(normalizedEvidence);
     finalResult = {
       ...existingResult,
-      status: "failure",
+      schemaVersion: 2,
+      ruleVersion: T1_RULE_VERSION,
+      collectorVersion: T1_COLLECTOR_VERSION,
+      harnessCommit,
+      adapterVersion: providerEvidenceVersions[provider],
+      verdict: classification.verdict,
+      status: classification.status,
       operatingSystem: process.env.T1_OPERATING_SYSTEM ?? process.platform,
       sourceReady: Boolean(existingResult.sourceReadyAt),
       providerLoaded: false,
       providerImportCompleted: false,
       providerImportStatus: "not-loaded",
       providerTerminalState: null,
-      loadSuccessful: false,
-      loadStatus: "not-loaded",
-      failureCategory: "runner-error",
-      failedPhase: "runner",
+      providerState: normalizedEvidence.providerEvidence.state,
+      projectHealth: normalizedEvidence.projectEvidence.health,
+      semanticState: normalizedEvidence.semanticEvidence.state,
+      diagnosticState: normalizedEvidence.diagnosticEvidence.state,
+      reasonCodes: classification.reasonCodes,
+      loadSuccessful: classification.loadSuccessful,
+      loadStatus: classification.loadStatus,
+      failureCategory: classification.failureCategory,
+      failedPhase: classification.failedPhase,
       errorCount: Number(existingResult.errorCount ?? 0),
       warningCount: Number(existingResult.warningCount ?? 0),
       diagnosticsCaptured: Boolean(existingResult.diagnosticsCaptured),
       completedAt: completedAt.toISOString(),
       totalDurationMs: completedAt.getTime() - processStartedAt.getTime(),
-      error: caught instanceof Error ? caught.stack : String(caught),
+      error: harnessError,
     };
+    writeJson(
+      path.join(outputDirectory, "normalized-evidence.json"),
+      normalizedEvidence,
+    );
     writeJson(resultPath, finalResult);
   } finally {
     await driver.close();
-    collectProfileEvidence(profile, outputDirectory);
+    collectProfileEvidence(profile, outputDirectory, {
+      ruleVersion: T1_RULE_VERSION,
+      collectorVersion: T1_COLLECTOR_VERSION,
+      harnessCommit,
+      adapterVersion: providerEvidenceVersions[provider],
+    });
     writeJson(path.join(outputDirectory, "run-metadata.json"), {
+      schemaVersion: 2,
+      ruleVersion: T1_RULE_VERSION,
+      collectorVersion: T1_COLLECTOR_VERSION,
+      harnessCommit,
+      adapterVersion: providerEvidenceVersions[provider],
       project: project.id,
       repository: project.repository,
       commit: project.commit,
@@ -1898,32 +2141,15 @@ if (
           failedAt: new Date().toISOString(),
         });
       }
-      const resultPath = path.join(activeOutputDirectory, "result.json");
-      if (!fs.existsSync(resultPath)) {
-        const failedAt = new Date();
-        const result = {
-          schemaVersion: 1,
-          project: argument("--project", process.env.T1_PROJECT) ?? null,
-          product: argument("--provider", process.env.T1_PROVIDER) ?? null,
-          status: "failure",
-          operatingSystem: process.env.T1_OPERATING_SYSTEM ?? process.platform,
-          providerLoaded: false,
-          providerImportCompleted: false,
-          providerImportStatus: "not-loaded",
-          providerTerminalState: null,
-          loadSuccessful: false,
-          loadStatus: "not-loaded",
-          failureCategory: "runner-error",
-          failedPhase: "runner",
-          errorCount: 0,
-          warningCount: 0,
-          diagnosticsCaptured: false,
-          completedAt: failedAt.toISOString(),
-          totalDurationMs: failedAt.getTime() - scriptStartedAt,
-          error: error instanceof Error ? error.stack : String(error),
-        };
-        writeJson(resultPath, result);
+      const result = writeOuterRunnerFailure(activeOutputDirectory, error);
+      try {
         appendGithubSummary(result);
+      } catch (summaryError) {
+        console.error(
+          summaryError instanceof Error
+            ? summaryError.stack
+            : String(summaryError),
+        );
       }
     }
     console.error(error);

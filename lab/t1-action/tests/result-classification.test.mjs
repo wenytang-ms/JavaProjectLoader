@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildProviderLoadResult,
-  classifyLoadResult,
   detectProviderTerminalState,
   isProviderBusy,
 } from "../result-classification.mjs";
@@ -120,41 +119,4 @@ test("completed initialization and active indexing are not not-loaded", () => {
   assert.equal(uiTimeout.loaded, true);
   assert.equal(uiTimeout.importStatus, "loaded-ui-timeout");
   assert.equal(uiTimeout.failureCategory, "provider-ui-timeout");
-});
-
-test("final result prioritizes provider import state", () => {
-  const warning = classifyLoadResult({
-    sourceReady: false,
-    sourceFailureCategory: "source-readiness-timeout",
-    providerLoad: { importStatus: "loaded-with-project-errors" },
-    diagnosticsStable: true,
-    errorCount: 1,
-  });
-  assert.deepEqual(warning, {
-    successful: false,
-    loadStatus: "loaded-with-project-errors",
-    failureCategory: "provider-project-errors",
-    failedPhase: "provider-load",
-  });
-
-  const diagnostics = classifyLoadResult({
-    sourceReady: true,
-    providerLoad: { importStatus: "ready" },
-    diagnosticsStable: true,
-    errorCount: 3,
-  });
-  assert.equal(diagnostics.loadStatus, "loaded-with-diagnostics-errors");
-
-  const indexing = classifyLoadResult({
-    sourceReady: false,
-    providerLoad: { importStatus: "loaded-indexing-timeout" },
-    diagnosticsStable: true,
-    errorCount: 0,
-  });
-  assert.deepEqual(indexing, {
-    successful: false,
-    loadStatus: "loaded-indexing-timeout",
-    failureCategory: "provider-indexing-timeout",
-    failedPhase: "source-index",
-  });
 });

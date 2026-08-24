@@ -1,25 +1,18 @@
-const intellijFatalPatterns = [
-  ["gradle-build-failed", /\bBUILD FAILED\b/i],
-  ["maven-build-failure", /\bBUILD FAILURE\b/i],
-  [
-    "import-stderr-failure",
-    /\[IMPORT ERR\]\s*:\s*(?:(?:ERROR|FATAL)\b|[^\r\n]*(?:exception|non-zero exit))/i,
-  ],
-  ["failed-to-import", /Failed to import/i],
-  ["initialization-failed", /Initialization failed/i],
-  ["maven-goal-failed", /Failed to execute goal/i],
-  ["dependency-resolution-failed", /Could not resolve dependencies/i],
-  ["artifact-missing", /\[ERROR\][^\r\n]*Could not find artifact/i],
-];
+import {
+  analyzeIntellijLog,
+  INTELLIJ_EVIDENCE_VERSION,
+  intellijStatusFatalPatterns,
+} from "./providers/intellij-evidence.mjs";
+import {
+  analyzeJdtlsLog,
+  JDTLS_EVIDENCE_VERSION,
+  jdtlsStatusFatalPatterns,
+} from "./providers/jdtls-evidence.mjs";
 
-const jdtlsFatalPatterns = [
-  ["initialization-failed", /Initialization failed/i],
-  ["failed-to-import", /Failed to import projects?/i],
-  [
-    "buildship-import-exception",
-    /Buildship[^\r\n]*(?:terminated|failed|exception)/i,
-  ],
-];
+export const providerEvidenceVersions = {
+  jdtls: JDTLS_EVIDENCE_VERSION,
+  intellij: INTELLIJ_EVIDENCE_VERSION,
+};
 
 const buildOutputFatalPatterns = [
   [
@@ -39,16 +32,8 @@ const buildOutputFatalPatterns = [
 ];
 
 const providerStatusFatalPatterns = {
-  jdtls: [
-    ["java-warning", /Java:\s*Warning/i],
-    ["java-error", /Java:\s*Error/i],
-    ["gradle-build-error", /Gradle:\s*Build Error/i],
-    ["maven-build-error", /Maven:\s*Build Error/i],
-  ],
-  intellij: [
-    ["gradle-build-error", /Gradle:\s*Build Error/i],
-    ["maven-build-error", /Maven:\s*Build Error/i],
-  ],
+  jdtls: jdtlsStatusFatalPatterns,
+  intellij: intellijStatusFatalPatterns,
 };
 
 function matchingNames(content, patterns) {
@@ -97,14 +82,10 @@ export function analyzeStatusProblemCounts(statusBarText = "") {
 
 export function analyzeProviderStatus(provider, statusBarText = "") {
   const text = String(statusBarText);
-  const matches = matchingNames(
+  return matchingNames(
     text,
     providerStatusFatalPatterns[provider] ?? [],
   );
-  if ((analyzeStatusProblemCounts(text)?.errorCount ?? 0) > 0) {
-    matches.push("workspace-problems-errors");
-  }
-  return [...new Set(matches)];
 }
 
 export function combinedFatalEvidence(evidence) {
@@ -117,76 +98,12 @@ export function combinedFatalEvidence(evidence) {
   ];
 }
 
-function updatedFileCount(content) {
-  return [...content.matchAll(/Updated\s+(\d+)\s+files?/gi)]
-    .map((match) => Number(match[1]))
-    .reduce((maximum, count) => Math.max(maximum, count), 0);
-}
-
 export function analyzeProviderLog(provider, content = "") {
-  const text = String(content);
   if (provider === "jdtls") {
-    const initializationCompleted =
-      text.includes(">> initialization job finished") ||
-      text.includes("Workspace initialized");
-    const buildJobsFinished = text.includes(">> build jobs finished");
-    const bspClasspathsUpdated =
-      /Updating classpaths for \d+ projects? \(\d+ build targets?\) using batched BSP calls\./
-        .test(text);
-    const fatalLogMatches = matchingNames(text, jdtlsFatalPatterns);
-    const nativeCompletionMatches = [
-      ...(initializationCompleted ? ["initialization-completed"] : []),
-      ...(buildJobsFinished ? ["build-jobs-finished"] : []),
-    ];
-    return {
-      fatalLogMatches,
-      nativeCompletionMatches,
-      nativeCompleted: initializationCompleted && buildJobsFinished,
-      initializationCompleted,
-      buildJobsFinished,
-      bspClasspathsUpdated,
-      updatedFileCount: 0,
-      importStarted: initializationCompleted || bspClasspathsUpdated,
-      functionalCandidate: false,
-      lastObservation: buildJobsFinished
-        ? "build-jobs-finished"
-        : initializationCompleted
-          ? "initialization-finished"
-          : bspClasspathsUpdated
-            ? "bsp-classpaths-updated"
-            : "waiting-for-workspace",
-    };
+    return analyzeJdtlsLog(content);
   }
-
-  const fatalLogMatches = matchingNames(text, intellijFatalPatterns);
-  const successfullyImported = /Successfully imported\s+/i.test(text);
-  const workspaceModelSaved = /Workspace model cache saved/i.test(text);
-  const filesUpdated = updatedFileCount(text);
-  const importStarted = /\[IMPORT (?:STD|PROGRESS|ERR)\]/i.test(text);
-  const nativeCompletionMatches = [
-    ...(successfullyImported ? ["successfully-imported"] : []),
-    ...(workspaceModelSaved ? ["workspace-model-cache-saved"] : []),
-  ];
-  return {
-    fatalLogMatches,
-    nativeCompletionMatches,
-    nativeCompleted: successfullyImported && workspaceModelSaved,
-    initializationCompleted: false,
-    buildJobsFinished: false,
-    bspClasspathsUpdated: false,
-    updatedFileCount: filesUpdated,
-    importStarted,
-    functionalCandidate: filesUpdated > 0 && !importStarted,
-    lastObservation: successfullyImported && workspaceModelSaved
-      ? "workspace-import-completed"
-      : workspaceModelSaved
-        ? "workspace-model-saved"
-        : successfullyImported
-          ? "workspace-imported"
-          : filesUpdated > 0
-            ? "analyzer-files-updated"
-            : importStarted
-              ? "import-in-progress"
-              : "waiting-for-project-import",
-  };
+  if (provider === "intellij") {
+    return analyzeIntellijLog(content);
+  }
+  throw new Error(`Unknown provider: ${provider}`);
 }

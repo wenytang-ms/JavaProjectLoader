@@ -1,0 +1,13 @@
+{
+  "name": "Diagnostics were not captured",
+  "diagnosticPatch": {
+    "state": "not-captured",
+    "captured": false,
+    "stable": false
+  },
+  "expected": {
+    "verdict": "FAIL",
+    "failedPhase": "diagnostics",
+    "reasonCode": "diagnostics-not-captured"
+  }
+}

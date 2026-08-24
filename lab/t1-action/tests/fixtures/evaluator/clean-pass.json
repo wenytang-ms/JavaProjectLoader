@@ -1,0 +1,8 @@
+{
+  "name": "Complete clean T1 evidence",
+  "expected": {
+    "verdict": "PASS",
+    "failedPhase": "",
+    "reasonCode": null
+  }
+}

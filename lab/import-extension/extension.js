@@ -1,6 +1,10 @@
 const fs = require("fs");
 const path = require("path");
 const vscode = require("vscode");
+const {
+  canonicalizeFilePath,
+  createWorkspaceResolver,
+} = require("./workspace-path.cjs");
 
 const sleep = (milliseconds) =>
   new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -120,14 +124,34 @@ function sortDiagnostics(diagnostics) {
 function collectWorkspaceDiagnostics() {
   const diagnostics = [];
   const excludedDiagnostics = [];
+  const workspaceFolders = (vscode.workspace.workspaceFolders ?? []).map(
+    (folder) => ({
+      uri: folder.uri.toString(),
+      path: folder.uri.fsPath,
+    }),
+  );
+  const resolveWorkspace = createWorkspaceResolver(workspaceFolders);
   for (const [uri, items] of vscode.languages.getDiagnostics()) {
-    const diagnosticWorkspace = vscode.workspace.getWorkspaceFolder(uri);
+    const membership =
+      uri.scheme === "file"
+        ? resolveWorkspace(uri.fsPath)
+        : {
+            included: false,
+            originalPath: uri.toString(),
+            canonicalPath: null,
+            workspaceFolderUri: null,
+            canonicalWorkspacePath: null,
+            relativePath: null,
+            exclusionReason: `unsupported-uri-scheme:${uri.scheme}`,
+          };
     const serialized = items.map((item) => ({
       uri: uri.toString(),
-      relativePath: diagnosticWorkspace
-        ? vscode.workspace.asRelativePath(uri, false).replaceAll("\\", "/")
-        : null,
-      workspaceFolderUri: diagnosticWorkspace?.uri.toString() ?? null,
+      originalPath: membership.originalPath,
+      canonicalPath: membership.canonicalPath,
+      relativePath: membership.relativePath,
+      workspaceFolderUri: membership.workspaceFolderUri,
+      canonicalWorkspacePath: membership.canonicalWorkspacePath,
+      exclusionReason: membership.exclusionReason,
       severity:
         item.severity === vscode.DiagnosticSeverity.Error
           ? "error"
@@ -144,7 +168,7 @@ function collectWorkspaceDiagnostics() {
       endLine: item.range.end.line,
       endCharacter: item.range.end.character,
     }));
-    if (diagnosticWorkspace) {
+    if (membership.included) {
       diagnostics.push(...serialized);
     } else {
       excludedDiagnostics.push(...serialized);
@@ -275,10 +299,14 @@ async function captureDiagnostics(options = {}) {
       ? collectWorkspaceDiagnostics().excludedDiagnostics
       : [];
   const result = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     scope,
     workspaceFolders: (vscode.workspace.workspaceFolders ?? []).map(
-      (folder) => folder.uri.toString(),
+      (folder) => ({
+        uri: folder.uri.toString(),
+        originalPath: folder.uri.fsPath,
+        canonicalPath: canonicalizeFilePath(folder.uri.fsPath),
+      }),
     ),
     startedAt: new Date(startedAt).toISOString(),
     completedAt: new Date().toISOString(),

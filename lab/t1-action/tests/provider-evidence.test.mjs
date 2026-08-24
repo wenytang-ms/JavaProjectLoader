@@ -119,25 +119,18 @@ test("JDT LS Ready cannot override a Gradle build error", () => {
     "jdtls",
     "9K 1K 914 | Java: Ready | Gradle: Build Error",
   );
-  assert.deepEqual(fatalStatusMatches, [
-    "gradle-build-error",
-    "workspace-problems-errors",
-  ]);
+  assert.deepEqual(fatalStatusMatches, ["gradle-build-error"]);
   assert.deepEqual(
     combinedFatalEvidence({
       fatalLogMatches: [],
       fatalBuildOutputMatches: ["gradle-build-failed"],
       fatalStatusMatches,
     }),
-    [
-      "gradle-build-failed",
-      "gradle-build-error",
-      "workspace-problems-errors",
-    ],
+    ["gradle-build-failed", "gradle-build-error"],
   );
 });
 
-test("status Problems errors are fatal even when Java is Ready", () => {
+test("status Problems errors remain separate from Provider state", () => {
   assert.deepEqual(
     analyzeStatusProblemCounts(
       "40e7de08 | 9K 1K 914 | Java: Ready | Java | CRLF",
@@ -154,7 +147,7 @@ test("status Problems errors are fatal even when Java is Ready", () => {
       "jdtls",
       "40e7de08 | 9K 1K 914 | Java: Ready | Java | CRLF",
     ),
-    ["workspace-problems-errors"],
+    [],
   );
 });
 

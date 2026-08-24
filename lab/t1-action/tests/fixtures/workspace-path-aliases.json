@@ -1,0 +1,18 @@
+[
+  {
+    "name": "Windows short workspace path",
+    "platform": "win32",
+    "workspacePath": "C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\autotest-worktree-a",
+    "diagnosticPath": "C:\\Users\\runneradmin\\AppData\\Local\\Temp\\autotest-worktree-a\\src\\Main.java",
+    "canonicalPrefix": "C:\\Users\\runneradmin\\",
+    "relativePath": "src/Main.java"
+  },
+  {
+    "name": "macOS private var alias",
+    "platform": "darwin",
+    "workspacePath": "/var/folders/aa/autotest-worktree-b",
+    "diagnosticPath": "/private/var/folders/aa/autotest-worktree-b/src/Main.java",
+    "canonicalPrefix": "/private/var/",
+    "relativePath": "src/Main.java"
+  }
+]

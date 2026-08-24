@@ -70,7 +70,15 @@ function writeCsv(filePath, rows) {
     "loadStatus",
     "providerImportStatus",
     "providerTerminalState",
+    "providerState",
+    "projectHealth",
+    "semanticState",
+    "diagnosticState",
+    "verdict",
     "failureCategory",
+    "failedPhase",
+    "reasonCodes",
+    "ruleVersion",
     "errorCount",
     "warningCount",
     "totalDurationMs",
@@ -89,8 +97,8 @@ function providerRows(rows) {
     return {
       provider,
       total: selected.length,
-      success: selected.filter((row) => row.status === "success").length,
-      failure: selected.filter((row) => row.status !== "success").length,
+      success: selected.filter((row) => row.verdict === "PASS").length,
+      failure: selected.filter((row) => row.verdict !== "PASS").length,
       importFailed: selected.filter(
         (row) => row.loadStatus === "import-failed",
       ).length,
@@ -120,8 +128,8 @@ function osRows(rows) {
       return {
         operatingSystem,
         total: selected.length,
-        success: selected.filter((row) => row.status === "success").length,
-        failure: selected.filter((row) => row.status !== "success").length,
+        success: selected.filter((row) => row.verdict === "PASS").length,
+        failure: selected.filter((row) => row.verdict !== "PASS").length,
       };
     },
   );
@@ -130,6 +138,8 @@ function osRows(rows) {
 function markdown(summary) {
   const lines = [
     "## T1 aggregate conclusion",
+    "",
+    `**Rule:** ${summary.ruleVersion}`,
     "",
     `**Overall:** ${summary.successCount}/${summary.expectedCount} succeeded; ` +
       `${summary.failureCount} failed; ${summary.missingCount} result artifact(s) missing.`,
@@ -173,16 +183,18 @@ function markdown(summary) {
     "",
     "### Detailed results",
     "",
-    "| Project | Provider | OS | Load status | Terminal | Errors | Warnings | Duration |",
-    "|---|---|---|---|---|---:|---:|---:|",
+    "| Project | Provider | OS | Verdict | Provider | Project | Semantic | Diagnostics | Phase | Reasons | Duration |",
+    "|---|---|---|---|---|---|---|---|---|---|---:|",
     ...summary.results.map((row) => {
       const duration = row.totalDurationMs === null
         ? "-"
         : `${(row.totalDurationMs / 1000).toFixed(1)}s`;
       return (
         `| ${row.project} | ${row.provider} | ${row.operatingSystem} | ` +
-        `${row.loadStatus} | ${row.providerTerminalState ?? "-"} | ` +
-        `${row.errorCount} | ${row.warningCount} | ${duration} |`
+        `${row.verdict} | ${row.providerState} | ${row.projectHealth} | ` +
+        `${row.semanticState} | ${row.diagnosticState} | ` +
+        `${row.failedPhase || "-"} | ${row.reasonCodes || "-"} | ` +
+        `${duration} |`
       );
     }),
     "",
@@ -210,10 +222,29 @@ export function summarizeResults({
       provider,
       operatingSystem,
       status: result.status === "success" ? "success" : "failure",
+      verdict:
+        result.verdict ??
+        (result.status === "success" ? "PASS" : "FAIL"),
       loadStatus: result.loadStatus ?? result.status ?? "unknown",
       providerImportStatus: result.providerImportStatus ?? "unknown",
       providerTerminalState: result.providerTerminalState ?? null,
+      providerState:
+        result.providerState ??
+        result.providerTerminalState ??
+        "unknown",
+      projectHealth: result.projectHealth ?? "unknown",
+      semanticState:
+        result.semanticState ??
+        (result.sourceReady ? "ready" : "unknown"),
+      diagnosticState:
+        result.diagnosticState ??
+        (Number(result.errorCount ?? 0) > 0 ? "errors" : "unknown"),
       failureCategory: result.failureCategory ?? "",
+      failedPhase: result.failedPhase ?? "",
+      reasonCodes: Array.isArray(result.reasonCodes)
+        ? result.reasonCodes.join(";")
+        : "",
+      ruleVersion: result.ruleVersion ?? "legacy",
       errorCount: Number(result.errorCount ?? 0),
       warningCount: Number(result.warningCount ?? 0),
       totalDurationMs:
@@ -234,10 +265,18 @@ export function summarizeResults({
       provider,
       operatingSystem,
       status: "failure",
+      verdict: "FAIL",
       loadStatus: "missing-result",
       providerImportStatus: "unknown",
       providerTerminalState: null,
+      providerState: "unknown",
+      projectHealth: "unknown",
+      semanticState: "unknown",
+      diagnosticState: "not-captured",
       failureCategory: "missing-result-artifact",
+      failedPhase: "aggregate",
+      reasonCodes: "missing-result-artifact",
+      ruleVersion: "unknown",
       errorCount: 0,
       warningCount: 0,
       totalDurationMs: null,
@@ -245,12 +284,23 @@ export function summarizeResults({
       resultPath: "",
     };
   });
-  const successCount = results.filter((row) => row.status === "success").length;
+  const ruleVersions = [...new Set(
+    results
+      .filter((row) => row.loadStatus !== "missing-result")
+      .map((row) => row.ruleVersion),
+  )];
+  if (ruleVersions.length > 1) {
+    throw new Error(
+      `Aggregate input mixes incompatible rule versions: ${ruleVersions.join(", ")}`,
+    );
+  }
+  const successCount = results.filter((row) => row.verdict === "PASS").length;
   const missingCount = results.filter(
     (row) => row.loadStatus === "missing-result",
   ).length;
   const summary = {
-    schemaVersion: 1,
+    schemaVersion: 2,
+    ruleVersion: ruleVersions[0] ?? "unknown",
     generatedAt: new Date().toISOString(),
     expectedCount: expected.length,
     resultCount: expected.length - missingCount,
@@ -259,7 +309,7 @@ export function summarizeResults({
     failureCount: expected.length - successCount,
     loadStatusCounts: countBy(results, "loadStatus"),
     failureCategoryCounts: countBy(
-      results.filter((row) => row.status !== "success"),
+      results.filter((row) => row.verdict !== "PASS"),
       "failureCategory",
     ),
     providers: providerRows(results),

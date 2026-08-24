@@ -1,0 +1,12 @@
+{
+  "name": "Diagnostics never stabilize",
+  "diagnosticPatch": {
+    "state": "unstable",
+    "stable": false
+  },
+  "expected": {
+    "verdict": "FAIL",
+    "failedPhase": "diagnostics",
+    "reasonCode": "diagnostics-unstable"
+  }
+}

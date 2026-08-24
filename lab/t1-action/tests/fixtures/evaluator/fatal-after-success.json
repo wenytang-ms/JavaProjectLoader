@@ -1,0 +1,20 @@
+{
+  "name": "Fatal build evidence followed by success markers",
+  "providerPatch": {
+    "nativeCompletionMatches": [
+      "successfully-imported",
+      "workspace-model-cache-saved"
+    ]
+  },
+  "projectPatch": {
+    "health": "build-errors",
+    "buildEvidence": [
+      "maven-build-failure"
+    ]
+  },
+  "expected": {
+    "verdict": "FAIL",
+    "failedPhase": "project-import",
+    "reasonCode": "project-build-failure"
+  }
+}

@@ -1,4 +1,5 @@
 name: Java provider T1 matrix
+run-name: T1 v4 / ${{ inputs.project }} / ${{ inputs.provider }} / ${{ inputs.operating_system }}
 
 on:
   workflow_dispatch:
