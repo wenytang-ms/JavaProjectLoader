@@ -21,10 +21,61 @@ const jdtlsFatalPatterns = [
   ],
 ];
 
+const buildOutputFatalPatterns = [
+  [
+    "gradle-build-failed",
+    /(?:\bBUILD FAILED\b|\bCONFIGURE FAILED\b|FAILURE:\s*Build failed with an exception)/i,
+  ],
+  ["maven-build-failure", /\bBUILD FAILURE\b/i],
+  ["maven-goal-failed", /\[ERROR\][^\r\n]*Failed to execute goal/i],
+  [
+    "dependency-resolution-failed",
+    /\[ERROR\][^\r\n]*Could not resolve dependencies/i,
+  ],
+  [
+    "build-action-failed",
+    /\[error\][^\r\n]*(?:supplied build action|error getting build)[^\r\n]*failed with an exception/i,
+  ],
+];
+
+const providerStatusFatalPatterns = {
+  jdtls: [
+    ["java-warning", /Java:\s*Warning/i],
+    ["java-error", /Java:\s*Error/i],
+    ["gradle-build-error", /Gradle:\s*Build Error/i],
+    ["maven-build-error", /Maven:\s*Build Error/i],
+  ],
+  intellij: [
+    ["gradle-build-error", /Gradle:\s*Build Error/i],
+    ["maven-build-error", /Maven:\s*Build Error/i],
+  ],
+};
+
 function matchingNames(content, patterns) {
   return patterns
     .filter(([, pattern]) => pattern.test(content))
     .map(([name]) => name);
+}
+
+export function analyzeBuildOutput(content = "") {
+  return matchingNames(String(content), buildOutputFatalPatterns);
+}
+
+export function analyzeProviderStatus(provider, statusBarText = "") {
+  return matchingNames(
+    String(statusBarText),
+    providerStatusFatalPatterns[provider] ?? [],
+  );
+}
+
+export function combinedFatalEvidence(evidence) {
+  return [
+    ...new Set([
+      ...(evidence.fatalLogMatches ?? []),
+      ...(evidence.fatalBuildOutputMatches ?? []),
+      ...(evidence.fatalStatusMatches ?? []),
+    ]),
+  ];
 }
 
 function updatedFileCount(content) {

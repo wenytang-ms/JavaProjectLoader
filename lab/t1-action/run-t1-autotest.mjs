@@ -21,7 +21,12 @@ import {
   detectProviderTerminalState,
   isProviderBusy,
 } from "./result-classification.mjs";
-import { analyzeProviderLog } from "./provider-evidence.mjs";
+import {
+  analyzeBuildOutput,
+  analyzeProviderLog,
+  analyzeProviderStatus,
+  combinedFatalEvidence,
+} from "./provider-evidence.mjs";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(scriptDir, "..", "..");
@@ -624,6 +629,66 @@ function findProviderLog(userDataDirectory, provider) {
   })?.path ?? null;
 }
 
+export function findBuildOutputLogs(userDataDirectory, provider, buildTool) {
+  return listFiles(userDataDirectory)
+    .filter((file) => {
+      const normalized = file.path.replaceAll("\\", "/");
+      if (!normalized.includes("/logs/") || !normalized.includes("/output_logging_")) {
+        return false;
+      }
+      const name = path.basename(file.path);
+      if (provider === "intellij") {
+        return /Java and Kotlin by IntelliJ IDEA.*Build\.log$/i.test(name);
+      }
+      if (buildTool === "gradle") {
+        return /^(?:\d+-)?(?:Gradle for Java|Build Server for Gradle \(Build\))\.log$/i
+          .test(name);
+      }
+      if (buildTool === "maven") {
+        return /^(?:\d+-)?Maven for Java\.log$/i.test(name);
+      }
+      return /^(?:\d+-)?(?:Gradle for Java|Maven for Java|Build Server for Gradle \(Build\))\.log$/i
+        .test(name);
+    })
+    .map((file) => file.path)
+    .sort();
+}
+
+export function readBuildOutputEvidence(userDataDirectory, provider, buildTool) {
+  const buildOutputPaths = findBuildOutputLogs(
+    userDataDirectory,
+    provider,
+    buildTool,
+  );
+  const content = buildOutputPaths
+    .filter((filePath) => fs.existsSync(filePath))
+    .map((filePath) => fs.readFileSync(filePath, "utf8"))
+    .join("\n");
+  return {
+    buildOutputPaths,
+    content,
+    fatalBuildOutputMatches: analyzeBuildOutput(content),
+  };
+}
+
+function enrichProviderEvidence({
+  provider,
+  providerLogContent,
+  statusBarText,
+  buildOutput,
+}) {
+  const evidence = {
+    ...analyzeProviderLog(provider, providerLogContent),
+    buildOutputPaths: buildOutput.buildOutputPaths,
+    fatalBuildOutputMatches: buildOutput.fatalBuildOutputMatches,
+    fatalStatusMatches: analyzeProviderStatus(provider, statusBarText),
+  };
+  return {
+    ...evidence,
+    fatalEvidenceMatches: combinedFatalEvidence(evidence),
+  };
+}
+
 async function readStatusBarText(driver) {
   const page = driver.getPage();
   const items = page.locator("footer a, footer [role='button']");
@@ -641,14 +706,25 @@ async function waitForProviderLogMilestone(
   driver,
   profile,
   provider,
+  buildTool,
   timeoutMs,
   outputDirectory,
 ) {
   const startedAt = Date.now();
   let logPath = null;
   let lastContent = "";
-  let lastLogChangeAt = startedAt;
-  let evidence = analyzeProviderLog(provider, "");
+  let lastBuildOutputContent = "";
+  let lastEvidenceChangeAt = startedAt;
+  let evidence = enrichProviderEvidence({
+    provider,
+    providerLogContent: "",
+    statusBarText: "",
+    buildOutput: {
+      buildOutputPaths: [],
+      content: "",
+      fatalBuildOutputMatches: [],
+    },
+  });
   let lastStatusBarText = "";
 
   while (Date.now() - startedAt < timeoutMs) {
@@ -663,27 +739,52 @@ async function waitForProviderLogMilestone(
       busy,
     );
     logPath ??= findProviderLog(profile.userDataDirectory, provider);
+    let providerLogContent = lastContent;
     if (logPath && fs.existsSync(logPath)) {
       const content = fs.readFileSync(logPath, "utf8");
       if (content !== lastContent) {
         lastContent = content;
-        lastLogChangeAt = Date.now();
+        lastEvidenceChangeAt = Date.now();
       }
-      evidence = analyzeProviderLog(provider, content);
-      if (evidence.fatalLogMatches.length > 0) {
-        const result = {
-          loaded: false,
-          failed: true,
-          failureCategory: "provider-import-failed",
-          logPath,
-          durationMs: Date.now() - startedAt,
-          statusBarText,
-          ...evidence,
-          lastObservation: evidence.fatalLogMatches[0],
-        };
-        writeJson(path.join(outputDirectory, "provider-log-readiness.json"), result);
-        return result;
-      }
+      providerLogContent = content;
+    }
+    const buildOutput = readBuildOutputEvidence(
+      profile.userDataDirectory,
+      provider,
+      buildTool,
+    );
+    if (buildOutput.content !== lastBuildOutputContent) {
+      lastBuildOutputContent = buildOutput.content;
+      lastEvidenceChangeAt = Date.now();
+    }
+    evidence = enrichProviderEvidence({
+      provider,
+      providerLogContent,
+      statusBarText,
+      buildOutput,
+    });
+    const hardStatusMatches = evidence.fatalStatusMatches.filter(
+      (match) => !["java-warning", "java-error"].includes(match),
+    );
+    if (
+      evidence.fatalLogMatches.length > 0 ||
+      evidence.fatalBuildOutputMatches.length > 0 ||
+      hardStatusMatches.length > 0
+    ) {
+      const result = {
+        loaded: false,
+        failed: true,
+        failureCategory: "provider-import-failed",
+        logPath,
+        durationMs: Date.now() - startedAt,
+        statusBarText,
+        ...evidence,
+        lastObservation: evidence.fatalEvidenceMatches[0],
+      };
+      writeJson(path.join(outputDirectory, "provider-log-readiness.json"), result);
+      return result;
+    }
+    if (logPath && fs.existsSync(logPath)) {
       if (evidence.nativeCompleted) {
         const result = {
           loaded: true,
@@ -698,7 +799,7 @@ async function waitForProviderLogMilestone(
         return result;
       }
       const logQuiet =
-        Date.now() - lastLogChangeAt >= functionalFallbackQuietMs;
+        Date.now() - lastEvidenceChangeAt >= functionalFallbackQuietMs;
       if (
         provider === "intellij" &&
         evidence.functionalCandidate &&
@@ -739,7 +840,7 @@ async function waitForProviderLogMilestone(
     if (
       provider === "jdtls" &&
       terminalState === "ready" &&
-      Date.now() - lastLogChangeAt >= functionalFallbackQuietMs
+      Date.now() - lastEvidenceChangeAt >= functionalFallbackQuietMs
     ) {
       const result = {
         loaded: true,
@@ -773,6 +874,8 @@ async function waitForProviderLogMilestone(
 async function waitForProviderIdle(
   driver,
   provider,
+  profile,
+  buildTool,
   timeoutMs,
   outputDirectory,
   stableMs = 30_000,
@@ -782,6 +885,7 @@ async function waitForProviderIdle(
   let stableTerminalState = null;
   let lastTerminalState = null;
   let lastText = null;
+  let lastBuildOutputContent = "";
   const transitions = [];
 
   while (Date.now() - startedAt < timeoutMs) {
@@ -794,9 +898,40 @@ async function waitForProviderIdle(
       lastText = text;
     }
     const busy = isProviderBusy(provider, text);
-    const terminalState = detectProviderTerminalState(provider, text, busy);
+    const buildOutput = readBuildOutputEvidence(
+      profile.userDataDirectory,
+      provider,
+      buildTool,
+    );
+    const buildOutputChanged =
+      buildOutput.content !== lastBuildOutputContent;
+    if (buildOutputChanged) {
+      lastBuildOutputContent = buildOutput.content;
+    }
+    const terminalState =
+      buildOutput.fatalBuildOutputMatches.length > 0
+        ? "error"
+        : detectProviderTerminalState(provider, text, busy);
     lastTerminalState = terminalState;
     if (terminalState) {
+      if (terminalState === "warning" || terminalState === "error") {
+        const result = {
+          idle: true,
+          settled: true,
+          terminalState,
+          durationMs: Date.now() - startedAt,
+          stableMs: 0,
+          finalStatusBarText: text,
+          buildOutputPaths: buildOutput.buildOutputPaths,
+          fatalBuildOutputMatches: buildOutput.fatalBuildOutputMatches,
+          transitions,
+        };
+        writeJson(path.join(outputDirectory, "provider-ui-readiness.json"), result);
+        return result;
+      }
+      if (buildOutputChanged) {
+        stableStartedAt = Date.now();
+      }
       if (stableTerminalState !== terminalState) {
         stableTerminalState = terminalState;
         stableStartedAt = Date.now();
@@ -809,6 +944,8 @@ async function waitForProviderIdle(
           durationMs: Date.now() - startedAt,
           stableMs,
           finalStatusBarText: text,
+          buildOutputPaths: buildOutput.buildOutputPaths,
+          fatalBuildOutputMatches: buildOutput.fatalBuildOutputMatches,
           transitions,
         };
         writeJson(path.join(outputDirectory, "provider-ui-readiness.json"), result);
@@ -837,6 +974,8 @@ async function waitForProviderIdle(
 async function waitForProviderIdleAfterLog(
   driver,
   provider,
+  profile,
+  buildTool,
   deadline,
   outputDirectory,
   log,
@@ -847,28 +986,62 @@ async function waitForProviderIdleAfterLog(
   const ui = await waitForProviderIdle(
     driver,
     provider,
+    profile,
+    buildTool,
     Math.max(0, deadline - Date.now()),
     outputDirectory,
   );
   return buildProviderLoadResult(log, ui);
 }
 
-function refreshProviderLoadEvidence(providerLoad, provider) {
+function refreshProviderLoadEvidence(
+  providerLoad,
+  provider,
+  profile,
+  buildTool,
+) {
   const logPath = providerLoad.log?.logPath;
-  if (!logPath || !fs.existsSync(logPath)) {
-    return providerLoad;
-  }
-  const evidence = analyzeProviderLog(
+  const providerLogContent =
+    logPath && fs.existsSync(logPath)
+      ? fs.readFileSync(logPath, "utf8")
+      : "";
+  const statusBarText =
+    providerLoad.ui?.finalStatusBarText ??
+    providerLoad.log?.statusBarText ??
+    "";
+  const buildOutput = readBuildOutputEvidence(
+    profile.userDataDirectory,
     provider,
-    fs.readFileSync(logPath, "utf8"),
+    buildTool,
   );
+  const evidence = enrichProviderEvidence({
+    provider,
+    providerLogContent,
+    statusBarText,
+    buildOutput,
+  });
   const log = {
     ...providerLoad.log,
     ...evidence,
   };
-  if (evidence.fatalLogMatches.length === 0) {
+  if (evidence.fatalEvidenceMatches.length === 0) {
     return {
       ...providerLoad,
+      log,
+    };
+  }
+  const warningOnly = evidence.fatalEvidenceMatches.every(
+    (match) => match === "java-warning",
+  );
+  if (warningOnly) {
+    return {
+      ...providerLoad,
+      loaded: true,
+      importCompleted: true,
+      importStatus: "loaded-with-project-errors",
+      terminalState: "warning",
+      failureCategory: "provider-project-errors",
+      completionEvidence: "fatal-status",
       log,
     };
   }
@@ -1455,12 +1628,15 @@ async function main() {
       driver,
       profile,
       provider,
+      providerSetup?.buildTool ?? project.projectSetup?.buildTool ?? null,
       Math.max(0, deadline - Date.now()),
       outputDirectory,
     );
     const observedProviderLoad = await waitForProviderIdleAfterLog(
       driver,
       provider,
+      profile,
+      providerSetup?.buildTool ?? project.projectSetup?.buildTool ?? null,
       deadline,
       outputDirectory,
       providerLog,
@@ -1508,6 +1684,8 @@ async function main() {
             await waitForProviderIdle(
               driver,
               provider,
+              profile,
+              providerSetup?.buildTool ?? project.projectSetup?.buildTool ?? null,
               Math.max(0, deadline - Date.now()),
               outputDirectory,
             ),
@@ -1516,6 +1694,8 @@ async function main() {
     const providerLoad = refreshProviderLoadEvidence(
       finalProviderLoad,
       provider,
+      profile,
+      providerSetup?.buildTool ?? project.projectSetup?.buildTool ?? null,
     );
     const classification = classifyLoadResult({
       sourceReady,
@@ -1583,11 +1763,17 @@ async function main() {
       provider,
       effectiveTimeoutSeconds,
       fatalLogMatches: providerLoad.log?.fatalLogMatches ?? [],
+      fatalBuildOutputMatches:
+        providerLoad.log?.fatalBuildOutputMatches ?? [],
+      fatalStatusMatches: providerLoad.log?.fatalStatusMatches ?? [],
+      fatalEvidenceMatches:
+        providerLoad.log?.fatalEvidenceMatches ?? [],
+      buildOutputPaths: providerLoad.log?.buildOutputPaths ?? [],
       nativeCompletionMatches:
         providerLoad.log?.nativeCompletionMatches ?? [],
-      nativeCompletion:
-        providerLoad.log?.completionEvidence === "native-log",
+      nativeCompletion: providerLoad.log?.nativeCompleted === true,
       functionalCompletion:
+        providerLoad.log?.nativeCompleted !== true &&
         providerLoad.log?.completionEvidence ===
         "functional-fallback-candidate",
       uiStable: providerLoad.ui?.settled === true,

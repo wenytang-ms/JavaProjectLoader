@@ -29,12 +29,33 @@ test("JDT LS exposes Ready, Warning, and Error as terminal states", () => {
 test("provider busy states include long-running refresh and indexing text", () => {
   assert.equal(isProviderBusy("jdtls", "Java: Refreshing workspace"), true);
   assert.equal(isProviderBusy("jdtls", "Java: Searching... - 80%"), true);
+  assert.equal(
+    isProviderBusy("jdtls", "Java: Ready | Gradle: Configure project : started"),
+    true,
+  );
   assert.equal(isProviderBusy("intellij", "Indexing: 98%"), true);
   assert.equal(
     isProviderBusy("intellij", "Indexing: Just a few more moments..."),
     true,
   );
   assert.equal(isProviderBusy("intellij", "Java and Kotlin"), false);
+});
+
+test("JDT LS build errors override Java Ready", () => {
+  const status = "9K 1K 914 | Java: Ready | Gradle: Build Error";
+  assert.equal(isProviderBusy("jdtls", status), false);
+  assert.equal(
+    detectProviderTerminalState("jdtls", status, false),
+    "error",
+  );
+});
+
+test("JDT LS build errors override Java Warning", () => {
+  const status = "Java: Warning | Gradle: Build Error";
+  assert.equal(
+    detectProviderTerminalState("jdtls", status, false),
+    "error",
+  );
 });
 
 test("IntelliJ requires its status item before UI is ready", () => {

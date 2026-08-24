@@ -1,7 +1,9 @@
+import { analyzeProviderStatus } from "./provider-evidence.mjs";
+
 export function isProviderBusy(provider, statusBarText) {
   const pattern =
     provider === "jdtls"
-      ? /Java:\s*(?:Activating|Importing|Building|Refreshing|Searching)/i
+      ? /(?:Java:\s*(?:Activating|Importing|Building|Refreshing|Searching)|Gradle:\s*(?:Configure|Build(?! Error)|Import|Refresh|Download)|Maven:\s*(?:Import|Build(?! Error)|Download))/i
       : /(?:Indexing|Importing project|Just a few more moments)/i;
   return pattern.test(statusBarText);
 }
@@ -11,8 +13,18 @@ export function detectProviderTerminalState(provider, statusBarText, busy) {
     return null;
   }
   if (provider === "jdtls") {
+    const fatalStatusMatches = analyzeProviderStatus(provider, statusBarText);
+    if (fatalStatusMatches.some((match) => match !== "java-warning")) {
+      return "error";
+    }
+    if (fatalStatusMatches.includes("java-warning")) {
+      return "warning";
+    }
     const match = statusBarText.match(/Java:\s*(Ready|Warning|Error)/i);
     return match ? match[1].toLowerCase() : null;
+  }
+  if (analyzeProviderStatus(provider, statusBarText).length > 0) {
+    return "error";
   }
   return /Java and Kotlin/i.test(statusBarText) ? "ready" : null;
 }

@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { analyzeProviderLog } from "../provider-evidence.mjs";
+import {
+  analyzeBuildOutput,
+  analyzeProviderLog,
+  analyzeProviderStatus,
+  combinedFatalEvidence,
+} from "../provider-evidence.mjs";
 
 test("IntelliJ fatal Maven evidence overrides later import markers", () => {
   const evidence = analyzeProviderLog("intellij", `
@@ -94,4 +99,32 @@ test("JDT LS requires initialization and build completion", () => {
     "initialization-completed",
     "build-jobs-finished",
   ]);
+});
+
+test("JDT LS Guava Gradle failure is fatal build output", () => {
+  const fatalBuildOutputMatches = analyzeBuildOutput(`
+    [error] FAILURE: Build failed with an exception.
+    CONFIGURE FAILED in 2m 20s
+    [error] The supplied build action failed with an exception.
+  `);
+  assert.deepEqual(fatalBuildOutputMatches, [
+    "gradle-build-failed",
+    "build-action-failed",
+  ]);
+});
+
+test("JDT LS Ready cannot override a Gradle build error", () => {
+  const fatalStatusMatches = analyzeProviderStatus(
+    "jdtls",
+    "9K 1K 914 | Java: Ready | Gradle: Build Error",
+  );
+  assert.deepEqual(fatalStatusMatches, ["gradle-build-error"]);
+  assert.deepEqual(
+    combinedFatalEvidence({
+      fatalLogMatches: [],
+      fatalBuildOutputMatches: ["gradle-build-failed"],
+      fatalStatusMatches,
+    }),
+    ["gradle-build-failed", "gradle-build-error"],
+  );
 });

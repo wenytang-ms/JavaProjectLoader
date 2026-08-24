@@ -15,8 +15,10 @@ import {
   applyWindowsJavaToolCopies,
   applyWindowsTextReplacements,
   configureGradleToolchainEnvironment,
+  findBuildOutputLogs,
   gradleSiblingProjectSettings,
   materializeWorkspace,
+  readBuildOutputEvidence,
   writeGradleToolchainProperties,
 } from "../run-t1-autotest.mjs";
 
@@ -119,6 +121,42 @@ test("IntelliJ Maven import receives the configured project JDK", () => {
       "java-home": projectJavaHome,
     },
   ]);
+});
+
+test("JDT LS gate discovers and analyzes Gradle Build Output", () => {
+  const userData = fs.mkdtempSync(path.join(os.tmpdir(), "t1-build-output-"));
+  try {
+    const outputDirectory = path.join(
+      userData,
+      "logs",
+      "session",
+      "window1",
+      "exthost",
+      "output_logging_session",
+    );
+    fs.mkdirSync(outputDirectory, { recursive: true });
+    const gradleLog = path.join(outputDirectory, "2-Gradle for Java.log");
+    fs.writeFileSync(
+      gradleLog,
+      "[error] FAILURE: Build failed with an exception.\nCONFIGURE FAILED\n",
+    );
+    fs.writeFileSync(
+      path.join(outputDirectory, "5-Language Support for Java.log"),
+      "BUILD FAILED text outside Build Output\n",
+    );
+
+    assert.deepEqual(
+      findBuildOutputLogs(userData, "jdtls", "gradle"),
+      [gradleLog],
+    );
+    const evidence = readBuildOutputEvidence(userData, "jdtls", "gradle");
+    assert.deepEqual(evidence.buildOutputPaths, [gradleLog]);
+    assert.deepEqual(evidence.fatalBuildOutputMatches, [
+      "gradle-build-failed",
+    ]);
+  } finally {
+    fs.rmSync(userData, { recursive: true, force: true });
+  }
 });
 
 test("an unmanaged case validates its generated Maven descriptor", () => {
