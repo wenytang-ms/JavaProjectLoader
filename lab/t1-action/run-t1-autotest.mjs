@@ -4,7 +4,6 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { VscodeDriver } from "@vscjava/vscode-autotest";
 import {
   downloadAndUnzipVSCode,
   resolveCliArgsFromVSCodeExecutablePath,
@@ -21,6 +20,11 @@ import {
   detectProviderTerminalState,
   isProviderBusy,
 } from "./result-classification.mjs";
+import {
+  assertIntellijWorkspacePathEvidence,
+  createIntellijWorkspacePathEvidence,
+  createT1Driver,
+} from "./workspace-driver.mjs";
 import {
   analyzeBuildOutput,
   analyzeProviderLog,
@@ -1732,7 +1736,7 @@ async function main() {
     path.join(outputDirectory, "vscode-settings.json"),
     vscodeSettings,
   );
-  const driver = new VscodeDriver({
+  const driver = createT1Driver(provider, {
     vscodeVersion: "stable",
     extensionPath: importExtensionPath,
     workspacePath,
@@ -1743,8 +1747,21 @@ async function main() {
   let onboarding = null;
   let error = null;
   let finalResult = null;
+  let workspacePathEvidence = null;
   try {
     await driver.launch();
+    if (provider === "intellij") {
+      workspacePathEvidence = createIntellijWorkspacePathEvidence({
+        requestedWorkspacePath: workspacePath,
+        openedWorkspacePath: driver.getWorkspacePath(),
+        settings: vscodeSettings,
+      });
+      writeJson(
+        path.join(outputDirectory, "workspace-path-evidence.json"),
+        workspacePathEvidence,
+      );
+      assertIntellijWorkspacePathEvidence(workspacePathEvidence);
+    }
     await saveScreenshot(driver, outputDirectory, "01-workbench-ready");
     if (provider === "intellij") {
       onboarding = await completeIntellijOnboarding(driver, outputDirectory);
@@ -1890,6 +1907,7 @@ async function main() {
           : [],
         error: diagnostics.error ?? null,
       },
+      workspacePathEvidence,
       providerLoad,
       completedAt: completedAt.toISOString(),
       totalDurationMs: completedAt.getTime() - processStartedAt.getTime(),
@@ -1936,6 +1954,7 @@ async function main() {
       diagnosticScope: diagnostics.scope ?? "workspace",
       diagnosticsCaptured: diagnostics.diagnosticsCaptured,
       diagnosticsStable: diagnostics.stable,
+      workspacePathValidated: workspacePathEvidence?.matches ?? null,
       errorCount,
       warningCount,
       result: successful ? "PASS" : "FAIL",
@@ -1967,6 +1986,7 @@ async function main() {
       loadStatus: finalResult.loadStatus,
       errorCount,
       warningCount,
+      workspacePathValidated: workspacePathEvidence?.matches ?? null,
       totalDurationMs: finalResult.totalDurationMs,
       sourceReadyMs: finalResult.sourceReadyMs,
       processToSourceReadyMs: finalResult.processToSourceReadyMs,
