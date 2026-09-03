@@ -2,9 +2,6 @@ name: JDT LS versus Oracle T1 comparison
 run-name: JDT LS vs Oracle / ${{ inputs.project_count || '10' }} projects / Windows
 
 on:
-  push:
-    branches:
-      - copilot/jdtls-oracle-comparison
   workflow_dispatch:
     inputs:
       project_count:
