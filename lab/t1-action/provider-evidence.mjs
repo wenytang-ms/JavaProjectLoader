@@ -8,10 +8,16 @@ import {
   JDTLS_EVIDENCE_VERSION,
   jdtlsStatusFatalPatterns,
 } from "./providers/jdtls-evidence.mjs";
+import {
+  analyzeOracleLog,
+  ORACLE_EVIDENCE_VERSION,
+  oracleStatusFatalPatterns,
+} from "./providers/oracle-evidence.mjs";
 
 export const providerEvidenceVersions = {
   jdtls: JDTLS_EVIDENCE_VERSION,
   intellij: INTELLIJ_EVIDENCE_VERSION,
+  oracle: ORACLE_EVIDENCE_VERSION,
 };
 
 const buildOutputFatalPatterns = [
@@ -34,6 +40,7 @@ const buildOutputFatalPatterns = [
 const providerStatusFatalPatterns = {
   jdtls: jdtlsStatusFatalPatterns,
   intellij: intellijStatusFatalPatterns,
+  oracle: oracleStatusFatalPatterns,
 };
 
 function matchingNames(content, patterns) {
@@ -104,6 +111,9 @@ export function analyzeProviderLog(provider, content = "") {
   }
   if (provider === "intellij") {
     return analyzeIntellijLog(content);
+  }
+  if (provider === "oracle") {
+    return analyzeOracleLog(content);
   }
   throw new Error(`Unknown provider: ${provider}`);
 }

@@ -1,7 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { validateProjectSetup } from "./project-environment.mjs";
+import {
+  getProviderSetup,
+  validateProjectSetup,
+} from "./project-environment.mjs";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const projectsPath = path.resolve(scriptDir, "..", "t1-projects.json");
@@ -95,24 +98,7 @@ export function loadProjects() {
 }
 
 function matrixEnvironment(project, provider, os) {
-  const providerSetup = project.projectSetup?.providers?.[provider];
-  if (!providerSetup) {
-    return {
-      configured: false,
-      projectJavaVersion: String(project.javaVersion ?? "21"),
-      projectJavaDistribution: "temurin",
-      runtimeJavaSource: provider === "jdtls" ? "setup-java" : "bundled",
-      runtimeJavaVersion: provider === "jdtls"
-        ? String(project.javaVersion ?? "21")
-        : "",
-      runtimeJavaDistribution: provider === "jdtls" ? "temurin" : "",
-      toolchainJavaVersions: "",
-      toolchainJavaDistribution: "",
-      buildTool: "",
-      goVersion: "",
-      bootstrapGradleVersion: "",
-    };
-  }
+  const providerSetup = getProviderSetup(project, provider);
   const toolchainJava = project.projectSetup.toolchainJava;
 
   const environment = {

@@ -56,6 +56,20 @@
             "version": "21"
           },
           "vscodeSettings": {}
+        },
+        "oracle": {
+          "runtimeJava": {
+            "source": "setup-java",
+            "distribution": "temurin",
+            "version": "21"
+          },
+          "projectJava": {
+            "distribution": "temurin",
+            "version": "21"
+          },
+          "vscodeSettings": {
+            "jdk.advanced.disable.projectSearchLimit": true
+          }
         }
       },
       "evidenceFiles": [
@@ -2246,6 +2260,20 @@
             "version": "17"
           },
           "vscodeSettings": {}
+        },
+        "oracle": {
+          "runtimeJava": {
+            "source": "setup-java",
+            "distribution": "temurin",
+            "version": "21"
+          },
+          "projectJava": {
+            "distribution": "temurin",
+            "version": "17"
+          },
+          "vscodeSettings": {
+            "jdk.advanced.disable.projectSearchLimit": true
+          }
         }
       },
       "evidenceFiles": [

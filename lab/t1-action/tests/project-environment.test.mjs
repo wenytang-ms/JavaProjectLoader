@@ -141,6 +141,21 @@ test("IntelliJ Maven import receives the configured project JDK", () => {
   ]);
 });
 
+test("Oracle receives separate language server and project JDK settings", () => {
+  const project = loadProjects().find(
+    (entry) => entry.id === "java-design-patterns",
+  );
+  const settings = createProjectSettings(project, "oracle", {}, {
+    T1_LANGUAGE_SERVER_JAVA_HOME: "C:\\jdks\\21-runtime",
+    T1_PROJECT_JAVA_HOME: "C:\\jdks\\21-project",
+  });
+
+  assert.equal(settings["jdk.jdkhome"], "C:\\jdks\\21-runtime");
+  assert.equal(settings["jdk.project.jdkhome"], "C:\\jdks\\21-project");
+  assert.equal(settings["jdk.advanced.disable.projectSearchLimit"], true);
+  assert.equal(settings["intellij.buildTool"], undefined);
+});
+
 test("IntelliJ Gradle import receives the configured project JDK", () => {
   const project = loadProjects().find((entry) => entry.id === "rxjava");
   const workspace = path.join(os.tmpdir(), "t1-intellij-gradle-workspace");

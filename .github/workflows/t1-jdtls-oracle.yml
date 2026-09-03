@@ -1,0 +1,228 @@
+name: JDT LS versus Oracle T1 comparison
+run-name: JDT LS vs Oracle / ${{ inputs.project_count }} projects / Windows
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_count:
+        description: "Number of smallest non-dismissed projects to compare"
+        required: true
+        default: "10"
+        type: string
+      projects:
+        description: "Optional comma-separated project ids; overrides project_count"
+        required: false
+        default: ""
+        type: string
+      exclude_cases:
+        description: "Comma-separated project:provider:os cases to omit"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      projects: ${{ steps.matrix.outputs.projects }}
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - id: matrix
+        name: Build JDT LS and Oracle comparison matrix
+        shell: bash
+        run: |
+          node lab/t1-action/create-jdtls-oracle-matrix.mjs \
+            --project-count "${{ inputs.project_count }}" \
+            --projects "${{ inputs.projects }}" \
+            --os "windows-latest" \
+            --exclude "${{ inputs.exclude_cases }}" \
+            --github-output "$GITHUB_OUTPUT" \
+            --summary "$GITHUB_STEP_SUMMARY"
+
+  compare:
+    name: Compare / ${{ matrix.project.id }} / ${{ matrix.provider }}
+    needs: prepare
+    timeout-minutes: 80
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    runs-on: ${{ matrix.os }}
+    env:
+      T1_OUTPUT_DIR: ${{ github.workspace }}/lab/t1-action/results/${{ matrix.project.id }}/${{ matrix.provider }}/${{ matrix.os }}
+      T1_OPERATING_SYSTEM: ${{ matrix.os }}
+      T1_MIN_TIMEOUT_SECONDS: "1800"
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: lab/t1-action/package-lock.json
+
+      - name: Set up project Go
+        if: matrix.environment.goVersion != ''
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.environment.goVersion }}
+          cache: false
+
+      - name: Set up additional project toolchain JDK
+        if: matrix.environment.toolchainJavaVersions != ''
+        uses: actions/setup-java@v5
+        with:
+          distribution: ${{ matrix.environment.toolchainJavaDistribution }}
+          java-version: ${{ matrix.environment.toolchainJavaVersions }}
+          overwrite-settings: false
+
+      - name: Record additional project toolchain JDK
+        if: matrix.environment.toolchainJavaVersions != ''
+        shell: pwsh
+        run: |
+          $versions = "${{ matrix.environment.toolchainJavaVersions }}" -split "\s+"
+          $homes = foreach ($version in $versions) {
+            $javaHome = Get-ChildItem Env: |
+              Where-Object Name -Like "JAVA_HOME_${version}_*" |
+              Select-Object -First 1
+            if (-not $javaHome) {
+              throw "actions/setup-java did not expose JAVA_HOME for JDK $version"
+            }
+            "JDK$version=$($javaHome.Value)" |
+              Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            $javaHome.Value
+          }
+          "T1_TOOLCHAIN_JAVA_HOMES=$($homes -join ';')" |
+            Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Set up project JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: ${{ matrix.environment.projectJavaDistribution }}
+          java-version: ${{ matrix.environment.projectJavaVersion }}
+          overwrite-settings: false
+
+      - name: Record project JDK home
+        shell: pwsh
+        run: |
+          "T1_PROJECT_JAVA_HOME=$env:JAVA_HOME" |
+            Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "JDK${{ matrix.environment.projectJavaVersion }}=$env:JAVA_HOME" |
+            Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Set up provider runtime JDK
+        if: matrix.environment.runtimeJavaSource == 'setup-java'
+        uses: actions/setup-java@v5
+        with:
+          distribution: ${{ matrix.environment.runtimeJavaDistribution }}
+          java-version: ${{ matrix.environment.runtimeJavaVersion }}
+          overwrite-settings: false
+
+      - name: Record provider runtime JDK
+        if: matrix.environment.runtimeJavaSource == 'setup-java'
+        shell: pwsh
+        run: |
+          "T1_LANGUAGE_SERVER_JAVA_HOME=$env:JAVA_HOME" |
+            Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Set up Gradle wrapper bootstrap
+        if: matrix.environment.bootstrapGradleVersion != ''
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: ${{ matrix.environment.bootstrapGradleVersion }}
+
+      - name: Set up Android SDK tooling JDK
+        if: matrix.environment.requiresAndroidSdk == true
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+          overwrite-settings: false
+
+      - name: Record Android SDK tooling JDK
+        if: matrix.environment.requiresAndroidSdk == true
+        shell: pwsh
+        run: |
+          "T1_ANDROID_SDK_JAVA_HOME=$env:JAVA_HOME" |
+            Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Set up declared project environment
+        shell: pwsh
+        run: |
+          $resultPath = Join-Path $env:RUNNER_TEMP "t1-project-environment-${{ matrix.project.id }}-${{ matrix.provider }}.json"
+          "T1_PROJECT_ENVIRONMENT_RESULT=$resultPath" |
+            Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          node lab/t1-action/project-environment.mjs `
+            --project "${{ matrix.project.id }}" `
+            --provider "${{ matrix.provider }}" `
+            --result $resultPath
+
+      - name: Install T1 runner
+        working-directory: lab/t1-action
+        run: npm ci
+
+      - name: Run provider T1
+        shell: pwsh
+        run: |
+          node lab\t1-action\run-t1-autotest.mjs `
+            --project "${{ matrix.project.id }}" `
+            --provider "${{ matrix.provider }}"
+
+      - name: Upload provider evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jdtls-oracle-${{ matrix.project.id }}-${{ matrix.provider }}-${{ runner.os }}
+          path: ${{ env.T1_OUTPUT_DIR }}
+          if-no-files-found: warn
+          include-hidden-files: true
+          compression-level: 6
+          retention-days: 14
+
+  aggregate:
+    name: Build JDT LS and Oracle comparison
+    if: ${{ always() && needs.prepare.result == 'success' }}
+    needs:
+      - prepare
+      - compare
+    runs-on: ubuntu-latest
+    env:
+      T1_MATRIX_JSON: ${{ needs.prepare.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Download provider evidence
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          pattern: jdtls-oracle-*
+          path: lab/t1-action/comparison-input
+          merge-multiple: false
+
+      - name: Build paired comparison
+        run: |
+          node lab/t1-action/summarize-jdtls-oracle.mjs \
+            --results lab/t1-action/comparison-input \
+            --output lab/t1-action/comparison-output \
+            --summary "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload comparison
+        uses: actions/upload-artifact@v4
+        with:
+          name: jdtls-oracle-comparison
+          path: lab/t1-action/comparison-output
+          if-no-files-found: error
+          retention-days: 30

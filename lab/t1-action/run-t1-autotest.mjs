@@ -42,10 +42,12 @@ const importExtensionPath = path.join(repositoryRoot, "lab", "import-extension")
 const providerExtensions = {
   jdtls: "vscjava.vscode-java-pack",
   intellij: "JetBrains.intellij-server",
+  oracle: "Oracle.oracle-java",
 };
 const providerExtensionSources = {
   jdtls: ["vscjava.vscode-java-pack@0.31.1"],
   intellij: ["JetBrains.intellij-server"],
+  oracle: ["Oracle.oracle-java@26.0.2"],
 };
 const redhatJavaExtension = {
   inventory: "redhat.java@1.56.2026073109",
@@ -64,6 +66,7 @@ const providerRefreshExtensions = {
     "redhat.java",
   ],
   intellij: ["JetBrains.intellij-server"],
+  oracle: ["Oracle.oracle-java"],
 };
 const approvedIntellijOnboarding = {
   region: "middle_east",
@@ -637,11 +640,26 @@ function findProviderLog(userDataDirectory, provider) {
   const files = listFiles(userDataDirectory);
   return files.find((file) => {
     const normalized = file.path.replaceAll("\\", "/");
-    return provider === "jdtls"
-      ? normalized.endsWith("/redhat.java/jdt_ws/.metadata/.log")
-      : normalized.endsWith(
-          "/JetBrains.intellij-server/system/log/intellij-server.log",
-        );
+    if (provider === "jdtls") {
+      return normalized.endsWith("/redhat.java/jdt_ws/.metadata/.log");
+    }
+    if (provider === "intellij") {
+      return normalized.endsWith(
+        "/JetBrains.intellij-server/system/log/intellij-server.log",
+      );
+    }
+    return provider === "oracle" &&
+      normalized.includes("/logs/") &&
+      normalized.includes("/output_logging_") &&
+      /(?:^|\/)(?:\d+-)?Oracle Java SE Language Server\.log$/i.test(normalized);
+  })?.path ?? null;
+}
+
+function findOracleProjectLog(userDataDirectory) {
+  return listFiles(userDataDirectory).find((file) => {
+    const normalized = file.path.replaceAll("\\", "/");
+    return normalized.includes("/Oracle.oracle-java/userdir/var/log/") &&
+      normalized.endsWith("/messages.log");
   })?.path ?? null;
 }
 
@@ -695,17 +713,23 @@ function enrichProviderEvidence({
   };
 }
 
-async function readStatusBarText(driver) {
+async function readStatusBarText(driver, timeoutMs = 10_000) {
   const page = driver.getPage();
-  const items = page.locator("footer a, footer [role='button']");
-  const values = [];
-  for (let index = 0; index < await items.count(); index += 1) {
-    const value = (await items.nth(index).textContent().catch(() => ""))?.trim();
-    if (value) {
-      values.push(value);
+  const read = async () => {
+    const items = page.locator("footer a, footer [role='button']");
+    const values = [];
+    for (let index = 0; index < await items.count(); index += 1) {
+      const value = (await items.nth(index).textContent().catch(() => ""))?.trim();
+      if (value) {
+        values.push(value);
+      }
     }
-  }
-  return values.join(" | ");
+    return values.join(" | ");
+  };
+  return Promise.race([
+    read(),
+    wait(timeoutMs).then(() => ""),
+  ]);
 }
 
 async function waitForProviderLogMilestone(
@@ -717,6 +741,7 @@ async function waitForProviderLogMilestone(
 ) {
   const startedAt = Date.now();
   let logPath = null;
+  let projectLogPath = null;
   let lastContent = "";
   let lastBuildOutputContent = "";
   let lastEvidenceChangeAt = startedAt;
@@ -744,9 +769,19 @@ async function waitForProviderLogMilestone(
       busy,
     );
     logPath ??= findProviderLog(profile.userDataDirectory, provider);
+    if (provider === "oracle") {
+      projectLogPath ??= findOracleProjectLog(profile.userDataDirectory);
+    }
     let providerLogContent = lastContent;
     if (logPath && fs.existsSync(logPath)) {
-      const content = fs.readFileSync(logPath, "utf8");
+      const outputContent = fs.readFileSync(logPath, "utf8");
+      const projectContent =
+        projectLogPath && fs.existsSync(projectLogPath)
+          ? fs.readFileSync(projectLogPath, "utf8")
+          : "";
+      const content = projectContent
+        ? `${outputContent}\n--- Oracle NetBeans project log ---\n${projectContent}`
+        : outputContent;
       if (content !== lastContent) {
         lastContent = content;
         lastEvidenceChangeAt = Date.now();
@@ -794,6 +829,7 @@ async function waitForProviderLogMilestone(
           loaded: true,
           failed: false,
           logPath,
+          projectLogPath,
           durationMs: Date.now() - startedAt,
           statusBarText,
           completionEvidence: "native-log",
@@ -814,6 +850,7 @@ async function waitForProviderLogMilestone(
           loaded: true,
           failed: false,
           logPath,
+          projectLogPath,
           durationMs: Date.now() - startedAt,
           statusBarText,
           completionEvidence: "functional-fallback-candidate",
@@ -1065,24 +1102,36 @@ export async function captureStableDiagnostics(
   fs.rmSync(resultPath, { force: true });
   const stableMs = 15_000;
   const timeoutMs = 60_000;
-  try {
-    await driver.executeVSCodeCommand(
-      "javaImportBenchmark.captureDiagnostics",
-      {
-        scope,
-        relativeFiles,
-        resultPath,
-        stableMs,
-        timeoutMs,
-      },
-    );
-  } catch (error) {
+  let commandError = null;
+  const command = driver.executeVSCodeCommand(
+    "javaImportBenchmark.captureDiagnostics",
+    {
+      scope,
+      relativeFiles,
+      resultPath,
+      stableMs,
+      timeoutMs,
+    },
+  ).catch((error) => {
+    commandError = error;
+  });
+  const resultWritten = (async () => {
+    const deadline = Date.now() + timeoutMs + stableMs + 15_000;
+    while (!fs.existsSync(resultPath) && Date.now() < deadline) {
+      await wait(500);
+    }
+  })();
+  await Promise.race([command, resultWritten]);
+  if (commandError && !fs.existsSync(resultPath)) {
     return {
       stable: false,
       scope,
       counts: { error: 0, warning: 0, information: 0, hint: 0 },
       diagnosticsCaptured: false,
-      error: error instanceof Error ? error.stack : String(error),
+      error:
+        commandError instanceof Error
+          ? commandError.stack
+          : String(commandError),
     };
   }
 
@@ -1314,18 +1363,20 @@ function uninstallConflictingProviderExtensions(
   provider,
   outputDirectory,
 ) {
-  const extensionIds =
-    provider === "jdtls"
-      ? ["JetBrains.intellij-server"]
-      : [
-          "vscjava.vscode-java-pack",
-          "vscjava.vscode-java-test",
-          "vscjava.vscode-java-debug",
-          "vscjava.vscode-java-dependency",
-          "vscjava.vscode-maven",
-          "vscjava.vscode-gradle",
-          "redhat.java",
-        ];
+  const jdtlsExtensions = [
+    "vscjava.vscode-java-pack",
+    "vscjava.vscode-java-test",
+    "vscjava.vscode-java-debug",
+    "vscjava.vscode-java-dependency",
+    "vscjava.vscode-maven",
+    "vscjava.vscode-gradle",
+    "redhat.java",
+  ];
+  const extensionIds = provider === "jdtls"
+    ? ["JetBrains.intellij-server", "Oracle.oracle-java"]
+    : provider === "intellij"
+      ? [...jdtlsExtensions, "Oracle.oracle-java"]
+      : [...jdtlsExtensions, "JetBrains.intellij-server"];
   return uninstallExtensions(
     vscodeExecutablePath,
     extensionIds,
@@ -1475,7 +1526,7 @@ function collectProfileEvidence(
       normalized.startsWith("logs/") &&
       [".log", ".txt", ".json"].includes(extension);
     const inProviderWorkspace =
-      /^User\/workspaceStorage\/[^/]+\/(?:redhat\.java|JetBrains\.intellij-server)\//i
+      /^User\/workspaceStorage\/[^/]+\/(?:redhat\.java|JetBrains\.intellij-server|Oracle\.oracle-java)\//i
         .test(normalized) &&
       (path.basename(file.path) === ".log" ||
         [".log", ".txt", ".json"].includes(extension));
@@ -1673,10 +1724,14 @@ async function main() {
       providerExtensionSources.jdtls[0],
       redhatJavaExtension.inventory,
     ];
-  } else {
+  } else if (provider === "intellij") {
     extensionSources = process.env.T1_INTELLIJ_VSIX
       ? [path.resolve(process.env.T1_INTELLIJ_VSIX)]
       : providerExtensionSources.intellij;
+  } else {
+    extensionSources = process.env.T1_ORACLE_VSIX
+      ? [path.resolve(process.env.T1_ORACLE_VSIX)]
+      : providerExtensionSources.oracle;
   }
   if (
     provider === "intellij" &&
@@ -1684,6 +1739,13 @@ async function main() {
     !fs.existsSync(extensionSources[0])
   ) {
     throw new Error(`IntelliJ VSIX does not exist: ${extensionSources[0]}`);
+  }
+  if (
+    provider === "oracle" &&
+    process.env.T1_ORACLE_VSIX &&
+    !fs.existsSync(extensionSources[0])
+  ) {
+    throw new Error(`Oracle Java VSIX does not exist: ${extensionSources[0]}`);
   }
   const install = installProvider(
     vscodeExecutablePath,
@@ -1805,7 +1867,7 @@ async function main() {
     const errorCount = Number(diagnostics.counts?.error ?? 0);
     const warningCount = Number(diagnostics.counts?.warning ?? 0);
     const finalProviderLoad =
-      observedProviderLoad.importStatus === "ready"
+      observedProviderLoad.importStatus === "ready" && provider !== "oracle"
         ? buildProviderLoadResult(
             providerLog,
             await waitForProviderIdle(

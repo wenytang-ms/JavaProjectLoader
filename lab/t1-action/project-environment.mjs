@@ -127,6 +127,37 @@ export function validateProjectSetup(project) {
       throw new Error(`${project.id}.${provider}.vscodeSettings must be an object.`);
     }
   }
+  if (setup.providers.oracle) {
+    const providerSetup = setup.providers.oracle;
+    requireString(
+      providerSetup.projectJava?.version,
+      `${project.id}.oracle.projectJava.version`,
+    );
+    requireString(
+      providerSetup.projectJava?.distribution,
+      `${project.id}.oracle.projectJava.distribution`,
+    );
+    if (providerSetup.runtimeJava?.source !== "setup-java") {
+      throw new Error(
+        `${project.id}.oracle.runtimeJava.source must be setup-java.`,
+      );
+    }
+    requireString(
+      providerSetup.runtimeJava.version,
+      `${project.id}.oracle.runtimeJava.version`,
+    );
+    requireString(
+      providerSetup.runtimeJava.distribution,
+      `${project.id}.oracle.runtimeJava.distribution`,
+    );
+    if (
+      !providerSetup.vscodeSettings ||
+      typeof providerSetup.vscodeSettings !== "object" ||
+      Array.isArray(providerSetup.vscodeSettings)
+    ) {
+      throw new Error(`${project.id}.oracle.vscodeSettings must be an object.`);
+    }
+  }
 
   if (setup.gradleWrapper) {
     requireRelativePath(
@@ -380,12 +411,29 @@ function extractRequiredMatch(content, expression, label, sourcePath) {
 
 export function getProviderSetup(project, provider) {
   const providerSetup = project.projectSetup?.providers?.[provider];
-  if (!providerSetup) {
-    throw new Error(
-      `Project ${project.id} has no environment contract for provider ${provider}.`,
-    );
+  if (providerSetup) {
+    return providerSetup;
   }
-  return providerSetup;
+  if (provider === "oracle") {
+    const jdtlsSetup = project.projectSetup?.providers?.jdtls;
+    if (!jdtlsSetup) {
+      throw new Error(
+        `Project ${project.id} cannot derive Oracle settings without a JDT LS contract.`,
+      );
+    }
+    return {
+      runtimeJava: {
+        source: "setup-java",
+        distribution: "temurin",
+        version: "21",
+      },
+      projectJava: { ...jdtlsSetup.projectJava },
+      vscodeSettings: {},
+    };
+  }
+  throw new Error(
+    `Project ${project.id} has no environment contract for provider ${provider}.`,
+  );
 }
 
 export function discoverProjectEnvironment(
@@ -551,6 +599,18 @@ export function createProjectSettings(
   }
 
   const providerSetup = getProviderSetup(project, provider);
+  if (provider === "oracle") {
+    const settings = { ...providerSetup.vscodeSettings };
+    const languageServerJavaHome = environment.T1_LANGUAGE_SERVER_JAVA_HOME;
+    const projectJavaHome = environment.T1_PROJECT_JAVA_HOME;
+    if (languageServerJavaHome) {
+      settings["jdk.jdkhome"] = languageServerJavaHome;
+    }
+    if (projectJavaHome) {
+      settings["jdk.project.jdkhome"] = projectJavaHome;
+    }
+    return settings;
+  }
   if (provider !== "jdtls") {
     const settings = { ...providerSetup.vscodeSettings };
     const projectJavaHome = environment.T1_PROJECT_JAVA_HOME;

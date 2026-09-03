@@ -68,6 +68,28 @@ test("IntelliJ requires its status item before UI is ready", () => {
   );
 });
 
+test("Oracle uses transient progress and settles after native readiness", () => {
+  assert.equal(
+    isProviderBusy(
+      "oracle",
+      "Launching Oracle Java SE Language Server with JDK 21",
+    ),
+    true,
+  );
+  assert.equal(
+    detectProviderTerminalState("oracle", "Ln 1, Col 1", false),
+    "ready",
+  );
+  assert.equal(
+    detectProviderTerminalState(
+      "oracle",
+      "$(error) Cannot initialize Java support",
+      false,
+    ),
+    "error",
+  );
+});
+
 test("project warnings and service errors are distinct import failures", () => {
   const log = { loaded: true, failed: false };
   const warning = buildProviderLoadResult(log, {

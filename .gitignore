@@ -1,3 +1,4 @@
 node_modules/
 .vscode-test/
+.local-t1/
 lab/t1-action/results/

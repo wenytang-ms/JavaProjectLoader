@@ -102,6 +102,40 @@ test("JDT LS requires initialization and build completion", () => {
   ]);
 });
 
+test("Oracle distinguishes language client readiness from fatal startup logs", () => {
+  const ready = analyzeProviderLog("oracle", `
+    [INFO]: LSP server launching: 1234
+    [INFO]: Language Client: Starting
+    [INFO]: Language Client: Ready
+    INFO: 4 projects opened in 18,974ms
+    INFO: Indexing finished, indexing took 8,597 ms.
+  `);
+  assert.equal(ready.nativeCompleted, true);
+  assert.deepEqual(ready.nativeCompletionMatches, [
+    "language-client-ready",
+    "projects-opened",
+    "indexing-finished",
+  ]);
+  assert.deepEqual(ready.fatalLogMatches, []);
+
+  const clientOnly = analyzeProviderLog(
+    "oracle",
+    "[INFO]: Language Client: Ready",
+  );
+  assert.equal(clientOnly.nativeCompleted, false);
+  assert.equal(clientOnly.initializationCompleted, true);
+
+  const failed = analyzeProviderLog("oracle", `
+    [ERROR]: Cannot find org.netbeans.modules.java.lsp.server in the log!
+    [ERROR]: Oracle Java SE Language Server not enabled!
+  `);
+  assert.equal(failed.nativeCompleted, false);
+  assert.deepEqual(failed.fatalLogMatches, [
+    "language-server-module-missing",
+    "language-server-not-enabled",
+  ]);
+});
+
 test("JDT LS Guava Gradle failure is fatal build output", () => {
   const fatalBuildOutputMatches = analyzeBuildOutput(`
     [error] FAILURE: Build failed with an exception.
