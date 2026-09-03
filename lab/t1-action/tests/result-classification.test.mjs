@@ -77,6 +77,10 @@ test("Oracle uses transient progress and settles after native readiness", () => 
     true,
   );
   assert.equal(
+    isProviderBusy("oracle", "Indexing completed."),
+    false,
+  );
+  assert.equal(
     detectProviderTerminalState("oracle", "Ln 1, Col 1", false),
     "ready",
   );

@@ -4,7 +4,7 @@ export function isProviderBusy(provider, statusBarText) {
   const pattern = provider === "jdtls"
     ? /(?:Java:\s*(?:Activating|Importing|Building|Refreshing|Searching)|Gradle:\s*(?:Configure|Build(?! Error)|Import|Refresh|Download)|Maven:\s*(?:Import|Build(?! Error)|Download))/i
     : provider === "oracle"
-      ? /(?:Launching Oracle Java SE Language Server|Opening|Loading|Scanning|Indexing|Resolving|Building|Downloading)/i
+      ? /(?:Launching Oracle Java SE Language Server|Opening|Loading|Scanning|Indexing(?!\s+completed)|Resolving|Building|Downloading)/i
       : /(?:Indexing|Importing project|Just a few more moments)/i;
   return pattern.test(statusBarText);
 }
