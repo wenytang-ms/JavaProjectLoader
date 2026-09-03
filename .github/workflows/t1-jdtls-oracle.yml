@@ -1,7 +1,10 @@
 name: JDT LS versus Oracle T1 comparison
-run-name: JDT LS vs Oracle / ${{ inputs.project_count }} projects / Windows
+run-name: JDT LS vs Oracle / ${{ inputs.project_count || '10' }} projects / Windows
 
 on:
+  push:
+    branches:
+      - copilot/jdtls-oracle-comparison
   workflow_dispatch:
     inputs:
       project_count:
@@ -41,10 +44,10 @@ jobs:
         shell: bash
         run: |
           node lab/t1-action/create-jdtls-oracle-matrix.mjs \
-            --project-count "${{ inputs.project_count }}" \
-            --projects "${{ inputs.projects }}" \
+            --project-count "${{ inputs.project_count || '10' }}" \
+            --projects "${{ inputs.projects || '' }}" \
             --os "windows-latest" \
-            --exclude "${{ inputs.exclude_cases }}" \
+            --exclude "${{ inputs.exclude_cases || '' }}" \
             --github-output "$GITHUB_OUTPUT" \
             --summary "$GITHUB_STEP_SUMMARY"
 
