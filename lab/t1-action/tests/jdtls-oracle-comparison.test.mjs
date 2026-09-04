@@ -163,5 +163,6 @@ test("comparison workflow runs the dedicated matrix and summarizer", () => {
   assert.match(workflow, /default: "10"/);
   assert.match(workflow, /create-jdtls-oracle-matrix\.mjs/);
   assert.match(workflow, /summarize-jdtls-oracle\.mjs/);
+  assert.doesNotMatch(workflow, /T1_MATRIX_JSON/);
   assert.match(workflow, /jdtls-oracle-comparison/);
 });

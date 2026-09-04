@@ -1,6 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  createComparisonMatrix,
+} from "./create-jdtls-oracle-matrix.mjs";
+import { loadProjects } from "./create-matrix.mjs";
 import { summarizeResults } from "./summarize-results.mjs";
 
 function argument(name, fallback) {
@@ -205,12 +209,20 @@ function main() {
     argument("--output", path.join(scriptDirectory, "comparison-output")),
   );
   const matrixJson = argument("--matrix-json", process.env.T1_MATRIX_JSON);
-  if (!matrixJson) {
-    throw new Error("T1 matrix JSON is required.");
-  }
+  const matrix = matrixJson
+    ? JSON.parse(matrixJson)
+    : {
+        include: createComparisonMatrix({
+          projects: loadProjects(),
+          requestedProjects: argument("--projects", ""),
+          projectCount: Number(argument("--project-count", "10")),
+          operatingSystem: argument("--os", "windows-latest"),
+          exclusions: argument("--exclude", ""),
+        }).matrixEntries,
+      };
   const result = summarizeComparison({
     resultsDirectory,
-    matrix: JSON.parse(matrixJson),
+    matrix,
     outputDirectory,
     summaryPath: argument("--summary", process.env.GITHUB_STEP_SUMMARY),
   });

@@ -20,7 +20,6 @@ on:
         default: windows-latest
         type: choice
         options:
-          - all
           - windows-latest
           - macos-latest
       exclude_cases:
@@ -222,8 +221,6 @@ jobs:
       - prepare
       - compare
     runs-on: ubuntu-latest
-    env:
-      T1_MATRIX_JSON: ${{ needs.prepare.outputs.matrix }}
     steps:
       - uses: actions/checkout@v5
 
@@ -244,6 +241,10 @@ jobs:
           node lab/t1-action/summarize-jdtls-oracle.mjs \
             --results lab/t1-action/comparison-input \
             --output lab/t1-action/comparison-output \
+            --project-count "${{ inputs.project_count || '10' }}" \
+            --projects "${{ inputs.projects || '' }}" \
+            --os "${{ inputs.operating_system || 'windows-latest' }}" \
+            --exclude "${{ inputs.exclude_cases || '' }}" \
             --summary "$GITHUB_STEP_SUMMARY"
 
       - name: Upload comparison
