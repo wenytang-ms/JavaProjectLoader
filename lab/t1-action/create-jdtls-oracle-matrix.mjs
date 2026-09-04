@@ -49,12 +49,14 @@ export function selectComparisonProjects(
     return requestedIds.map((id) => byId.get(id));
   }
   return eligible
-    .filter((project) => project.projectSetup?.csvBaseline?.dismissed !== true)
-    .sort(
-      (left, right) =>
+    .sort((left, right) => {
+      const dismissedDifference =
+        Number(left.projectSetup?.csvBaseline?.dismissed === true) -
+        Number(right.projectSetup?.csvBaseline?.dismissed === true);
+      return dismissedDifference ||
         javaFileCount(left) - javaFileCount(right) ||
-        left.id.localeCompare(right.id),
-    )
+        left.id.localeCompare(right.id);
+    })
     .slice(0, projectCount);
 }
 

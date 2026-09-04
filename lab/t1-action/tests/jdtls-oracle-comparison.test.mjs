@@ -66,6 +66,24 @@ test("comparison matrix pairs JDT LS and Oracle with matching project JDKs", () 
   }
 });
 
+test("full comparison matrix includes all projects on both operating systems", () => {
+  const result = createComparisonMatrix({
+    projects: loadProjects(),
+    projectCount: 100,
+    operatingSystem: "all",
+  });
+  assert.equal(result.selectedProjects.length, 100);
+  assert.equal(result.matrixEntries.length, 400);
+  assert.equal(
+    new Set(result.matrixEntries.map((entry) => entry.project.id)).size,
+    100,
+  );
+  assert.deepEqual(
+    [...new Set(result.matrixEntries.map((entry) => entry.os))].sort(),
+    ["macos-latest", "windows-latest"],
+  );
+});
+
 test("pairwise comparison distinguishes provider-specific success", () => {
   const comparisons = buildProviderComparisons([
     {
