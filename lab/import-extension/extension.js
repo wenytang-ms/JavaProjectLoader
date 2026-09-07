@@ -342,7 +342,7 @@ async function runT1() {
     product,
     project: importCase.id,
     case: importCase,
-    dependencyCacheMode: "warm-shared",
+    dependencyCacheMode: process.env.IMPORT_DEPENDENCY_CACHE_MODE || "warm-shared",
     dependencyCacheKind: "unknown",
     dependencyCachePath: null,
     targetPhase: "source-ready",

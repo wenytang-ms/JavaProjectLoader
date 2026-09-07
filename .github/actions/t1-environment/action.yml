@@ -1,0 +1,157 @@
+name: Install planned T1 environment
+description: Install discovered or exactly locked JDKs and project tools without changing the project requirements.
+inputs:
+  project:
+    required: true
+    description: Corpus project id
+  operating-system:
+    required: true
+    description: Matrix operating system
+  directory:
+    required: true
+    description: Directory containing environment plan and evidence
+  locked:
+    default: "false"
+    description: Require the qualified environment lock
+outputs:
+  state:
+    value: ${{ steps.plan.outputs.state }}
+    description: Whether this environment is eligible for installation
+runs:
+  using: composite
+  steps:
+    - id: plan
+      shell: pwsh
+      env:
+        ENVIRONMENT_PROJECT: ${{ inputs.project }}
+        ENVIRONMENT_OS: ${{ inputs.operating-system }}
+        ENVIRONMENT_DIRECTORY: ${{ inputs.directory }}
+        ENVIRONMENT_LOCKED: ${{ inputs.locked }}
+      run: |
+        node (Join-Path "lab" "t1-action" "environment-workflow.mjs") `
+          --phase load --project $env:ENVIRONMENT_PROJECT --os $env:ENVIRONMENT_OS `
+          --directory $env:ENVIRONMENT_DIRECTORY --locked $env:ENVIRONMENT_LOCKED
+
+    - uses: actions/setup-go@v6
+      if: steps.plan.outputs.state != 'ENV_BLOCKED' && steps.plan.outputs.goVersion != ''
+      with:
+        go-version: ${{ steps.plan.outputs.goVersion }}
+        cache: false
+
+    - uses: actions/setup-java@v5
+      if: steps.plan.outputs.state != 'ENV_BLOCKED' && steps.plan.outputs.toolchainJavaVersions != ''
+      with:
+        distribution: ${{ steps.plan.outputs.toolchainJavaDistribution }}
+        java-version: ${{ steps.plan.outputs.toolchainJavaVersions }}
+        overwrite-settings: false
+
+    - name: Record compiler toolchains
+      if: steps.plan.outputs.state != 'ENV_BLOCKED' && steps.plan.outputs.toolchainJavaVersions != ''
+      shell: pwsh
+      env:
+        ENVIRONMENT_PROJECT: ${{ inputs.project }}
+        ENVIRONMENT_OS: ${{ inputs.operating-system }}
+        ENVIRONMENT_DIRECTORY: ${{ inputs.directory }}
+      run: |
+        node (Join-Path "lab" "t1-action" "environment-workflow.mjs") `
+          --phase record-java --role toolchain --project $env:ENVIRONMENT_PROJECT `
+          --os $env:ENVIRONMENT_OS --directory $env:ENVIRONMENT_DIRECTORY
+
+    - uses: actions/setup-java@v5
+      if: steps.plan.outputs.state != 'ENV_BLOCKED'
+      with:
+        distribution: ${{ steps.plan.outputs.projectJavaDistribution }}
+        java-version: ${{ steps.plan.outputs.projectJavaVersion }}
+        overwrite-settings: false
+
+    - name: Record project SDK
+      if: steps.plan.outputs.state != 'ENV_BLOCKED'
+      shell: pwsh
+      env:
+        ENVIRONMENT_PROJECT: ${{ inputs.project }}
+        ENVIRONMENT_OS: ${{ inputs.operating-system }}
+        ENVIRONMENT_DIRECTORY: ${{ inputs.directory }}
+      run: |
+        node (Join-Path "lab" "t1-action" "environment-workflow.mjs") `
+          --phase record-java --role project --project $env:ENVIRONMENT_PROJECT `
+          --os $env:ENVIRONMENT_OS --directory $env:ENVIRONMENT_DIRECTORY
+
+    - uses: actions/setup-java@v5
+      if: steps.plan.outputs.state != 'ENV_BLOCKED'
+      with:
+        distribution: ${{ steps.plan.outputs.buildJavaDistribution }}
+        java-version: ${{ steps.plan.outputs.buildJavaVersion }}
+        overwrite-settings: false
+
+    - name: Record build JVM
+      if: steps.plan.outputs.state != 'ENV_BLOCKED'
+      shell: pwsh
+      env:
+        ENVIRONMENT_PROJECT: ${{ inputs.project }}
+        ENVIRONMENT_OS: ${{ inputs.operating-system }}
+        ENVIRONMENT_DIRECTORY: ${{ inputs.directory }}
+      run: |
+        node (Join-Path "lab" "t1-action" "environment-workflow.mjs") `
+          --phase record-java --role build --project $env:ENVIRONMENT_PROJECT `
+          --os $env:ENVIRONMENT_OS --directory $env:ENVIRONMENT_DIRECTORY
+
+    - uses: actions/setup-java@v5
+      if: steps.plan.outputs.state != 'ENV_BLOCKED'
+      with:
+        distribution: ${{ steps.plan.outputs.runtimeJavaDistribution }}
+        java-version: ${{ steps.plan.outputs.runtimeJavaVersion }}
+        overwrite-settings: false
+
+    - name: Record language-server JVM
+      if: steps.plan.outputs.state != 'ENV_BLOCKED'
+      shell: pwsh
+      env:
+        ENVIRONMENT_PROJECT: ${{ inputs.project }}
+        ENVIRONMENT_OS: ${{ inputs.operating-system }}
+        ENVIRONMENT_DIRECTORY: ${{ inputs.directory }}
+      run: |
+        node (Join-Path "lab" "t1-action" "environment-workflow.mjs") `
+          --phase record-java --role runtime --project $env:ENVIRONMENT_PROJECT `
+          --os $env:ENVIRONMENT_OS --directory $env:ENVIRONMENT_DIRECTORY
+
+    - uses: actions/setup-java@v5
+      if: steps.plan.outputs.state != 'ENV_BLOCKED' && steps.plan.outputs.requiresAndroidSdk == 'true'
+      with:
+        distribution: temurin
+        java-version: ${{ steps.plan.outputs.sdkJavaVersion || '17' }}
+        overwrite-settings: false
+
+    - name: Record Android tooling JVM
+      if: steps.plan.outputs.state != 'ENV_BLOCKED' && steps.plan.outputs.requiresAndroidSdk == 'true'
+      shell: pwsh
+      env:
+        ENVIRONMENT_PROJECT: ${{ inputs.project }}
+        ENVIRONMENT_OS: ${{ inputs.operating-system }}
+        ENVIRONMENT_DIRECTORY: ${{ inputs.directory }}
+      run: |
+        node (Join-Path "lab" "t1-action" "environment-workflow.mjs") `
+          --phase record-java --role sdk --project $env:ENVIRONMENT_PROJECT `
+          --os $env:ENVIRONMENT_OS --directory $env:ENVIRONMENT_DIRECTORY
+
+    - uses: gradle/actions/setup-gradle@v4
+      if: steps.plan.outputs.state != 'ENV_BLOCKED' && steps.plan.outputs.bootstrapGradleVersion != ''
+      with:
+        gradle-version: ${{ steps.plan.outputs.bootstrapGradleVersion }}
+        cache-disabled: true
+
+    - name: Provision planned Maven and Android packages
+      if: steps.plan.outputs.state != 'ENV_BLOCKED'
+      shell: pwsh
+      env:
+        ENVIRONMENT_PROJECT: ${{ inputs.project }}
+        ENVIRONMENT_OS: ${{ inputs.operating-system }}
+        ENVIRONMENT_DIRECTORY: ${{ inputs.directory }}
+        ENVIRONMENT_BUILD_TOOL: ${{ steps.plan.outputs.buildTool }}
+      run: |
+        if ($env:ENVIRONMENT_BUILD_TOOL -eq "gradle") {
+          $settings = Join-Path $HOME ".m2" "settings.xml"
+          if (Test-Path -LiteralPath $settings) { Remove-Item -LiteralPath $settings -Force }
+        }
+        node (Join-Path "lab" "t1-action" "environment-workflow.mjs") `
+          --phase provision --project $env:ENVIRONMENT_PROJECT `
+          --os $env:ENVIRONMENT_OS --directory $env:ENVIRONMENT_DIRECTORY

@@ -119,6 +119,11 @@ function main() {
     })),
   );
   appendOutput(outputFile, "matrix", { include: result.matrixEntries });
+  const environments = new Map(result.matrixEntries.map((entry) => [
+    `${entry.project.id}|${entry.os}`,
+    { project: { id: entry.project.id }, os: entry.os },
+  ]));
+  appendOutput(outputFile, "qualification_matrix", { include: [...environments.values()] });
   if (summaryFile) {
     fs.appendFileSync(
       summaryFile,

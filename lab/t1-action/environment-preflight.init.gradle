@@ -1,0 +1,69 @@
+import groovy.json.JsonOutput
+
+gradle.projectsEvaluated {
+    def root = gradle.rootProject
+    def requestedModel = {
+        [
+            gradleVersion: gradle.gradleVersion,
+            buildJavaHome: System.getProperty('java.home'),
+            buildJavaVersion: System.getProperty('java.version'),
+            projects: root.allprojects.collect { project ->
+                def java = project.extensions.findByName('java')
+                def toolchain = java != null && java.hasProperty('toolchain') ? java.toolchain : null
+                [
+                    path: project.path,
+                    javaToolchain: toolchain == null ? null : toolchain.languageVersion.getOrNull()?.toString(),
+                    sourceCompatibility: java == null ? null : java.sourceCompatibility?.toString(),
+                    targetCompatibility: java == null ? null : java.targetCompatibility?.toString()
+                ]
+            }
+        ]
+    }
+    def writeModel = { model ->
+        def destination = System.getProperty('t1.environment.model')
+        if (!destination) {
+            throw new GradleException('Missing t1.environment.model output path.')
+        }
+        new File(destination).setText(JsonOutput.prettyPrint(JsonOutput.toJson(model)), 'UTF-8')
+    }
+    root.tasks.register('t1EnvironmentDiscover') {
+        doLast {
+            writeModel(requestedModel())
+        }
+    }
+    def targets = root.allprojects.collectMany { project ->
+        def classes = project.tasks.findByName('classes')
+        if (classes != null) {
+            return [classes]
+        }
+        def androidJava = project.tasks.findByName('compileDebugJavaWithJavac')
+        return androidJava == null ? [] : [androidJava]
+    }
+    if (root.tasks.findByName('t1EnvironmentValidate') != null) {
+        throw new GradleException('The project already defines the reserved t1EnvironmentValidate task.')
+    }
+    root.tasks.register('t1EnvironmentValidate') {
+        dependsOn targets
+        doLast {
+            if (targets.isEmpty()) {
+                throw new GradleException('T1 environment qualification requires an explicit native compilation target for this project.')
+            }
+            def compilers = root.allprojects.collectMany { project ->
+                project.tasks.withType(org.gradle.api.tasks.compile.JavaCompile).collect { task ->
+                    def compiler = task.hasProperty('javaCompiler') ? task.javaCompiler.getOrNull() : null
+                    [
+                        task: task.path,
+                        sourceCompatibility: task.sourceCompatibility,
+                        targetCompatibility: task.targetCompatibility,
+                        compilerHome: compiler == null ? null : compiler.metadata.installationPath.asFile.absolutePath,
+                        compilerVersion: compiler == null ? null : compiler.metadata.languageVersion.toString()
+                    ]
+                }
+            }
+            writeModel(requestedModel() + [
+                compiledTargets: targets.collect { it.path },
+                compilers: compilers
+            ])
+        }
+    }
+}

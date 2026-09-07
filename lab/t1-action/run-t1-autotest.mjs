@@ -4,13 +4,22 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { VscodeDriver } from "@vscjava/vscode-autotest";
+import {
+  PreparedWorkspaceDriver,
+  rebaseRepositoryFile,
+  resolvePreparedWorkspace,
+  snapshotPreparedWorkspace,
+  verifyActualWorkspace,
+} from "./prepared-workspace-driver.mjs";
 import {
   downloadAndUnzipVSCode,
   resolveCliArgsFromVSCodeExecutablePath,
 } from "@vscode/test-electron";
 import { writeJsonArtifact as writeJson } from "./artifact-writer.mjs";
 import { loadProjects } from "./create-matrix.mjs";
+import { copyEnvironmentEvidence, loadProviderEnvironment } from "./environment-replay.mjs";
+import { createEnvironmentBlockedResult } from "./environment-result.mjs";
+import { activateBuildJava } from "./environment-toolchains.mjs";
 import {
   createProjectSettings,
   discoverProjectEnvironment,
@@ -33,6 +42,8 @@ import {
   createNormalizedEvidence,
   evaluateT1,
   T1_COLLECTOR_VERSION,
+  T1_ENVIRONMENT_COLLECTOR_VERSION,
+  T1_ENVIRONMENT_RULE_VERSION,
   T1_RULE_VERSION,
 } from "./t1-evaluator.mjs";
 
@@ -76,6 +87,8 @@ const approvedIntellijOnboarding = {
   eulaSha256: "ca5e72e6658dd12b6149ddf81411d0029d7d63aaea0c74e2282e0e386832e371",
 };
 let activeOutputDirectory = null;
+let activeEnvironmentRun = null;
+let activeProviderLoad = null;
 const scriptStartedAt = Date.now();
 const minimumTimeoutSeconds = Number(
   process.env.T1_MIN_TIMEOUT_SECONDS || 1_800,
@@ -131,7 +144,7 @@ async function downloadFile(url, filePath) {
   fs.writeFileSync(filePath, content);
 }
 
-function cloneRepository(repository, commit, targetPath, { submodules = false } = {}) {
+export function cloneRepository(repository, commit, targetPath, { submodules = false } = {}) {
   fs.rmSync(targetPath, { recursive: true, force: true });
   fs.mkdirSync(targetPath, { recursive: true });
   run("git", ["init", "--quiet"], { cwd: targetPath });
@@ -247,7 +260,7 @@ export function applyWindowsJavaToolCopies(
   });
 }
 
-function cloneProject(project, checkoutPath) {
+export function cloneProject(project, checkoutPath) {
   const checkout = project.projectSetup?.checkout ?? {};
   cloneRepository(project.repository, project.commit, checkoutPath, {
     submodules: checkout.submodules === true,
@@ -398,7 +411,7 @@ export function writeGradleToolchainProperties(
   return propertiesPath;
 }
 
-function createSyntheticMavenWorkspace(project, checkoutPath, workspacePath) {
+export function createSyntheticMavenWorkspace(project, checkoutPath, workspacePath) {
   fs.rmSync(workspacePath, { recursive: true, force: true });
   fs.mkdirSync(workspacePath, { recursive: true });
   const sourcePath = path.join(checkoutPath, ...project.relativeFile.split("/"));
@@ -726,10 +739,17 @@ async function readStatusBarText(driver, timeoutMs = 10_000) {
     }
     return values.join(" | ");
   };
-  return Promise.race([
-    read(),
-    wait(timeoutMs).then(() => ""),
-  ]);
+  let timer;
+  try {
+    return await Promise.race([
+      read(),
+      new Promise((resolve) => {
+        timer = setTimeout(() => resolve(""), timeoutMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function waitForProviderLogMilestone(
@@ -912,23 +932,26 @@ async function waitForProviderLogMilestone(
   return result;
 }
 
-async function waitForProviderIdle(
+export async function waitForProviderIdle(
   driver,
   provider,
   profile,
   timeoutMs,
   outputDirectory,
   stableMs = 30_000,
+  { now = Date.now, sleep = wait } = {},
 ) {
-  const startedAt = Date.now();
+  const startedAt = now();
   let stableStartedAt = null;
   let stableTerminalState = null;
   let lastTerminalState = null;
   let lastText = null;
   let lastBuildOutputContent = "";
+  const fatalBuildOutputMatches = new Set();
+  const buildOutputPaths = new Set();
   const transitions = [];
 
-  while (Date.now() - startedAt < timeoutMs) {
+  do {
     const text = (await readStatusBarText(driver)).replace(/\s+/g, " ").trim();
     if (text !== lastText) {
       transitions.push({
@@ -944,47 +967,38 @@ async function waitForProviderIdle(
     );
     const buildOutputChanged =
       buildOutput.content !== lastBuildOutputContent;
+    for (const match of buildOutput.fatalBuildOutputMatches) {
+      fatalBuildOutputMatches.add(match);
+    }
+    for (const file of buildOutput.buildOutputPaths) {
+      buildOutputPaths.add(file);
+    }
     if (buildOutputChanged) {
       lastBuildOutputContent = buildOutput.content;
     }
     const terminalState =
-      buildOutput.fatalBuildOutputMatches.length > 0
+      fatalBuildOutputMatches.size > 0
         ? "error"
         : detectProviderTerminalState(provider, text, busy);
     lastTerminalState = terminalState;
     if (terminalState) {
-      if (terminalState === "warning" || terminalState === "error") {
-        const result = {
-          idle: true,
-          settled: true,
-          terminalState,
-          durationMs: Date.now() - startedAt,
-          stableMs: 0,
-          finalStatusBarText: text,
-          buildOutputPaths: buildOutput.buildOutputPaths,
-          fatalBuildOutputMatches: buildOutput.fatalBuildOutputMatches,
-          transitions,
-        };
-        writeJson(path.join(outputDirectory, "provider-ui-readiness.json"), result);
-        return result;
-      }
       if (buildOutputChanged) {
-        stableStartedAt = Date.now();
+        stableStartedAt = now();
       }
       if (stableTerminalState !== terminalState) {
         stableTerminalState = terminalState;
-        stableStartedAt = Date.now();
+        stableStartedAt = now();
       }
-      if (Date.now() - stableStartedAt >= stableMs) {
+      if (now() - stableStartedAt >= stableMs) {
         const result = {
           idle: true,
           settled: true,
           terminalState,
-          durationMs: Date.now() - startedAt,
+          durationMs: now() - startedAt,
           stableMs,
           finalStatusBarText: text,
-          buildOutputPaths: buildOutput.buildOutputPaths,
-          fatalBuildOutputMatches: buildOutput.fatalBuildOutputMatches,
+          buildOutputPaths: [...buildOutputPaths],
+          fatalBuildOutputMatches: [...fatalBuildOutputMatches],
           transitions,
         };
         writeJson(path.join(outputDirectory, "provider-ui-readiness.json"), result);
@@ -994,16 +1008,21 @@ async function waitForProviderIdle(
       stableStartedAt = null;
       stableTerminalState = null;
     }
-    await wait(1000);
-  }
+    if (now() - startedAt >= timeoutMs) {
+      break;
+    }
+    await sleep(Math.min(1000, timeoutMs - (now() - startedAt)));
+  } while (now() - startedAt < timeoutMs);
 
   const result = {
     idle: false,
     settled: false,
     terminalState: lastTerminalState,
-    durationMs: Date.now() - startedAt,
+    durationMs: now() - startedAt,
     stableMs,
     finalStatusBarText: lastText ?? "",
+    buildOutputPaths: [...buildOutputPaths],
+    fatalBuildOutputMatches: [...fatalBuildOutputMatches],
     transitions,
   };
   writeJson(path.join(outputDirectory, "provider-ui-readiness.json"), result);
@@ -1028,23 +1047,27 @@ async function waitForProviderIdleAfterLog(
     Math.max(0, deadline - Date.now()),
     outputDirectory,
   );
-  return buildProviderLoadResult(log, ui);
+  return buildProviderLoadResult({
+    ...log,
+    fatalBuildOutputMatches: [...new Set([
+      ...(log.fatalBuildOutputMatches ?? []),
+      ...(ui.fatalBuildOutputMatches ?? []),
+    ])],
+  }, ui);
 }
 
-function refreshProviderLoadEvidence(
+export async function refreshProviderLoadEvidence(
+  driver,
   providerLoad,
   provider,
   profile,
 ) {
   const logPath = providerLoad.log?.logPath;
-  const providerLogContent =
-    logPath && fs.existsSync(logPath)
-      ? fs.readFileSync(logPath, "utf8")
-      : "";
-  const statusBarText =
-    providerLoad.ui?.finalStatusBarText ??
-    providerLoad.log?.statusBarText ??
-    "";
+  const providerLogContent = [logPath, providerLoad.log?.projectLogPath]
+    .filter((file) => file && fs.existsSync(file))
+    .map((file) => fs.readFileSync(file, "utf8"))
+    .join("\n");
+  const statusBarText = (await readStatusBarText(driver)).replace(/\s+/g, " ").trim();
   const buildOutput = readBuildOutputEvidence(
     profile.userDataDirectory,
     provider,
@@ -1055,22 +1078,52 @@ function refreshProviderLoadEvidence(
     statusBarText,
     buildOutput,
   });
+  // Live UI replaces old status text; actual log/build failures are never cleared.
+  evidence.fatalLogMatches = [...new Set([
+    ...(providerLoad.log?.fatalLogMatches ?? []),
+    ...evidence.fatalLogMatches,
+  ])];
+  evidence.fatalBuildOutputMatches = [...new Set([
+    ...(providerLoad.log?.fatalBuildOutputMatches ?? []),
+    ...(providerLoad.ui?.fatalBuildOutputMatches ?? []),
+    ...evidence.fatalBuildOutputMatches,
+  ])];
+  evidence.fatalEvidenceMatches = combinedFatalEvidence(evidence);
   const log = {
     ...providerLoad.log,
     ...evidence,
+    nativeCompleted: providerLoad.log?.nativeCompleted === true || evidence.nativeCompleted,
+    nativeCompletionMatches: [...new Set([
+      ...(providerLoad.log?.nativeCompletionMatches ?? []),
+      ...evidence.nativeCompletionMatches,
+    ])],
+    statusBarText,
   };
+  const terminalState = evidence.fatalBuildOutputMatches.length > 0
+    ? "error"
+    : detectProviderTerminalState(provider, statusBarText, isProviderBusy(provider, statusBarText));
+  const settled = providerLoad.ui?.settled === true &&
+    providerLoad.ui.terminalState === terminalState;
+  const ui = {
+    ...providerLoad.ui,
+    idle: settled,
+    settled,
+    terminalState,
+    finalStatusBarText: statusBarText,
+    observedAt: new Date().toISOString(),
+    buildOutputPaths: evidence.buildOutputPaths,
+    fatalBuildOutputMatches: evidence.fatalBuildOutputMatches,
+  };
+  const refreshed = buildProviderLoadResult(log, ui);
   if (evidence.fatalEvidenceMatches.length === 0) {
-    return {
-      ...providerLoad,
-      log,
-    };
+    return refreshed;
   }
   const warningOnly = evidence.fatalEvidenceMatches.every(
     (match) => match === "java-warning",
   );
   if (warningOnly) {
     return {
-      ...providerLoad,
+      ...refreshed,
       loaded: true,
       importCompleted: true,
       importStatus: "loaded-with-project-errors",
@@ -1081,7 +1134,7 @@ function refreshProviderLoadEvidence(
     };
   }
   return {
-    ...providerLoad,
+    ...refreshed,
     loaded: false,
     importCompleted: true,
     importStatus: "import-failed",
@@ -1089,6 +1142,60 @@ function refreshProviderLoadEvidence(
     failureCategory: "provider-import-failed",
     completionEvidence: "fatal-log",
     log,
+  };
+}
+
+export async function observeFinalProviderLoad(
+  driver,
+  provider,
+  profile,
+  deadline,
+  outputDirectory,
+  log,
+  { now = Date.now, sleep = wait } = {},
+) {
+  do {
+    const ui = await waitForProviderIdle(
+      driver, provider, profile, Math.max(0, deadline - now()), outputDirectory,
+      30_000, { now, sleep },
+    );
+    const refreshed = await refreshProviderLoadEvidence(
+      driver, buildProviderLoadResult(log, ui), provider, profile,
+    );
+    if (
+      !log.loaded ||
+      !ui.settled ||
+      refreshed.ui?.settled ||
+      refreshed.log.fatalLogMatches.length > 0 ||
+      refreshed.log.fatalBuildOutputMatches.length > 0 ||
+      now() >= deadline
+    ) {
+      return refreshed;
+    }
+    log = refreshed.log;
+  } while (true);
+}
+
+export async function collectSourceResultIfReady(
+  driver, resultPath, deadline, outputDirectory, providerLoad, project, provider,
+) {
+  if (fs.existsSync(resultPath)) {
+    return JSON.parse(fs.readFileSync(resultPath, "utf8"));
+  }
+  if (providerLoad.importStatus === "ready" && Date.now() < deadline) {
+    return waitForT1Result(driver, resultPath, deadline, outputDirectory);
+  }
+  return {
+    schemaVersion: 1,
+    project: project.id,
+    product: provider,
+    status: "failure",
+    sourceReadyAt: null,
+    documentSymbolReady: false,
+    hoverReady: false,
+    sourceAttempts: 0,
+    failureCategory: providerLoad.failureCategory || "source-readiness-not-run",
+    error: null,
   };
 }
 
@@ -1184,7 +1291,25 @@ function appendGithubSummary(result) {
   );
 }
 
-export function writeOuterRunnerFailure(outputDirectory, caught) {
+export function environmentResultFields(evidence, judgment) {
+  const fields = {
+    ruleVersion: evidence.ruleVersion,
+    collectorVersion: evidence.collectorVersion,
+  };
+  if (!evidence.environmentEvidence.required) return fields;
+  return {
+    ...fields,
+    environmentRequired: true,
+    environmentState: evidence.environmentEvidence.state,
+    environmentEligible: evidence.environmentEvidence.eligible,
+    evaluationEligible: judgment.verdict !== "NOT_EVALUATED",
+    eligibility: judgment.eligibility ?? "eligible",
+    environmentEvidence: evidence.environmentEvidence,
+    comparisonMode: "prebuilt-workspace",
+  };
+}
+
+export function writeOuterRunnerFailure(outputDirectory, caught, context = activeEnvironmentRun) {
   const existingResultPath = path.join(outputDirectory, "result.json");
   let existingResult = null;
   let existingResultError = null;
@@ -1196,6 +1321,9 @@ export function writeOuterRunnerFailure(outputDirectory, caught) {
     } catch (error) {
       existingResultError =
         error instanceof Error ? error.stack : String(error);
+    }
+    if (existingResult?.verdict === "NOT_EVALUATED" && existingResult.environmentEligible === false) {
+      return existingResult;
     }
   }
   const project =
@@ -1226,20 +1354,25 @@ export function writeOuterRunnerFailure(outputDirectory, caught) {
     existingResult?.adapterVersion ??
     "unknown";
   const failedAt = new Date();
+  const environmentRequired = context?.environmentRequired ??
+    process.env.T1_REQUIRE_ENVIRONMENT_READY === "1";
+  const providerLoad = existingResult?.providerLoad ?? context?.providerLoad ?? activeProviderLoad ?? {
+    loaded: existingResult?.providerLoaded === true,
+    importCompleted: existingResult?.providerImportCompleted === true,
+    importStatus: existingResult?.providerImportStatus ?? "not-loaded",
+    terminalState: existingResult?.providerTerminalState ?? null,
+    log: {},
+    ui: null,
+  };
   const normalizedEvidence = createNormalizedEvidence({
     project,
     provider,
     operatingSystem,
+    environmentRequired,
+    environment: context?.environment ?? existingResult?.environmentEvidence,
     effectiveTimeoutSeconds: 0,
-    providerLoad: {
-      loaded: false,
-      importCompleted: false,
-      importStatus: "not-loaded",
-      terminalState: null,
-      log: {},
-      ui: null,
-    },
-    sourceResult: {
+    providerLoad,
+    sourceResult: existingResult ?? {
       status: "failure",
       sourceAttempts: 0,
       documentSymbolReady: false,
@@ -1247,14 +1380,14 @@ export function writeOuterRunnerFailure(outputDirectory, caught) {
       failureCategory: "runner-error",
       error: harnessError,
     },
-    sourceReady: false,
+    sourceReady: existingResult?.sourceReady === true,
     diagnostics: {
-      scope: "unknown",
-      stable: false,
-      diagnosticsCaptured: false,
+      scope: existingResult?.diagnosticScope ?? "unknown",
+      stable: existingResult?.diagnosticsStable === true,
+      diagnosticsCaptured: existingResult?.diagnosticsCaptured === true,
       counts: {
-        error: 0,
-        warning: 0,
+        error: existingResult?.errorCount ?? 0,
+        warning: existingResult?.warningCount ?? 0,
         information: 0,
         hint: 0,
       },
@@ -1265,9 +1398,9 @@ export function writeOuterRunnerFailure(outputDirectory, caught) {
   });
   const classification = evaluateT1(normalizedEvidence);
   const result = {
+    ...existingResult,
     schemaVersion: 2,
-    ruleVersion: T1_RULE_VERSION,
-    collectorVersion: T1_COLLECTOR_VERSION,
+    ...environmentResultFields(normalizedEvidence, classification),
     harnessCommit,
     adapterVersion,
     project,
@@ -1275,11 +1408,12 @@ export function writeOuterRunnerFailure(outputDirectory, caught) {
     verdict: classification.verdict,
     status: classification.status,
     operatingSystem,
-    sourceReady: false,
-    providerLoaded: false,
-    providerImportCompleted: false,
-    providerImportStatus: "not-loaded",
-    providerTerminalState: null,
+    sourceReady: existingResult?.sourceReady === true,
+    providerLoad,
+    providerLoaded: providerLoad.loaded,
+    providerImportCompleted: providerLoad.importCompleted,
+    providerImportStatus: providerLoad.importStatus,
+    providerTerminalState: providerLoad.terminalState,
     providerState: normalizedEvidence.providerEvidence.state,
     projectHealth: normalizedEvidence.projectEvidence.health,
     semanticState: normalizedEvidence.semanticEvidence.state,
@@ -1289,9 +1423,11 @@ export function writeOuterRunnerFailure(outputDirectory, caught) {
     loadStatus: classification.loadStatus,
     failureCategory: classification.failureCategory,
     failedPhase: classification.failedPhase,
-    errorCount: 0,
-    warningCount: 0,
-    diagnosticsCaptured: false,
+    errorCount: environmentRequired && existingResult?.diagnosticsCaptured !== true
+      ? null : existingResult?.errorCount ?? 0,
+    warningCount: environmentRequired && existingResult?.diagnosticsCaptured !== true
+      ? null : existingResult?.warningCount ?? 0,
+    diagnosticsCaptured: existingResult?.diagnosticsCaptured === true,
     completedAt: failedAt.toISOString(),
     totalDurationMs: failedAt.getTime() - scriptStartedAt,
     error: harnessError,
@@ -1301,6 +1437,16 @@ export function writeOuterRunnerFailure(outputDirectory, caught) {
     normalizedEvidence,
   );
   writeJson(path.join(outputDirectory, "result.json"), result);
+  if (environmentRequired) {
+    writeJson(path.join(outputDirectory, "rule-evidence.json"), {
+      ...environmentResultFields(normalizedEvidence, classification),
+      result: classification.verdict,
+      failureCategory: classification.failureCategory,
+      reasonCodes: classification.reasonCodes,
+      harnessCommit,
+      error: harnessError,
+    });
+  }
   return result;
 }
 
@@ -1605,7 +1751,7 @@ async function main() {
     throw new Error(`Unknown provider: ${provider}`);
   }
 
-  const project = loadProjects().find((entry) => entry.id === projectId);
+  let project = loadProjects().find((entry) => entry.id === projectId);
   if (!project) {
     throw new Error(`Unknown project: ${projectId}`);
   }
@@ -1618,6 +1764,51 @@ async function main() {
   fs.rmSync(outputDirectory, { recursive: true, force: true });
   fs.mkdirSync(outputDirectory, { recursive: true });
 
+  const environmentRequired = process.env.T1_REQUIRE_ENVIRONMENT_READY === "1";
+  const operatingSystem = process.env.T1_OPERATING_SYSTEM ?? process.platform;
+  const vscodeVersion = process.env.T1_VSCODE_VERSION ?? (environmentRequired ? "1.136.1" : "stable");
+  const runVersions = {
+    ruleVersion: environmentRequired ? T1_ENVIRONMENT_RULE_VERSION : T1_RULE_VERSION,
+    collectorVersion: environmentRequired ? T1_ENVIRONMENT_COLLECTOR_VERSION : T1_COLLECTOR_VERSION,
+  };
+  const environmentProof = environmentRequired ? loadProviderEnvironment({
+    project,
+    operatingSystem,
+    harnessCommit,
+    directory: process.env.T1_ENVIRONMENT_DIRECTORY,
+  }) : null;
+  activeEnvironmentRun = { environmentRequired, environment: environmentProof?.environment };
+  if (environmentRequired) {
+    copyEnvironmentEvidence(process.env.T1_ENVIRONMENT_DIRECTORY, outputDirectory);
+    writeJson(path.join(outputDirectory, "environment-run-evidence.json"), environmentProof.environment);
+    writeJson(path.join(outputDirectory, "run-metadata.json"), {
+      schemaVersion: 2, ...runVersions, harnessCommit, project: project.id,
+      repository: project.repository, commit: project.commit, provider, operatingSystem,
+      vscodeVersion, environmentRequired, environmentState: environmentProof.environment.state,
+      environmentEvidence: environmentProof.environment,
+      comparisonMode: "prebuilt-workspace", ideStarted: false,
+    });
+    if (!environmentProof.qualified) {
+      const result = createEnvironmentBlockedResult({
+        project, provider, operatingSystem, harnessCommit,
+        environment: environmentProof.environment,
+      });
+      writeJson(path.join(outputDirectory, "normalized-evidence.json"), result.normalizedEvidence);
+      writeJson(path.join(outputDirectory, "result.json"), result);
+      writeJson(path.join(outputDirectory, "rule-evidence.json"), {
+        ...environmentResultFields(result.normalizedEvidence, result),
+        result: result.verdict, reasonCodes: result.reasonCodes,
+        failureCategory: result.failureCategory, harnessCommit,
+      });
+      appendGithubSummary(result);
+      console.log(`${project.id}/${provider}: ${result.environmentState} (NOT_EVALUATED; IDE not started)`);
+      return;
+    }
+    project = environmentProof.project;
+    activateBuildJava();
+    process.env.IMPORT_DEPENDENCY_CACHE_MODE = "prebuilt-isolated";
+  }
+
   if (!project.t1Eligible) {
     writeJson(path.join(outputDirectory, "result.json"), {
       project: project.id,
@@ -1628,7 +1819,7 @@ async function main() {
     return;
   }
 
-  const checkoutPath = path.join(
+  const checkoutPath = environmentProof?.checkout ?? path.join(
     process.env.RUNNER_TEMP ?? os.tmpdir(),
     `java-provider-t1-${project.id}-${provider}-checkout`,
   );
@@ -1640,10 +1831,10 @@ async function main() {
     process.env.RUNNER_TEMP ?? os.tmpdir(),
     `java-provider-t1-${project.id}-${provider}-materialized`,
   );
-  if (project.projectSetup && process.env.T1_PROJECT_JAVA_HOME) {
+  if (!environmentRequired && project.projectSetup && process.env.T1_PROJECT_JAVA_HOME) {
     process.env.JAVA_HOME = process.env.T1_PROJECT_JAVA_HOME;
   }
-  const windowsJavaToolCopies = applyWindowsJavaToolCopies(
+  const windowsJavaToolCopies = environmentRequired ? { reusedQualifiedPreparation: true } : applyWindowsJavaToolCopies(
     process.env.JAVA_HOME,
     project.projectSetup?.windowsJavaToolCopies,
   );
@@ -1655,26 +1846,31 @@ async function main() {
     project,
     process.env,
   );
-  const checkoutSetup = cloneProject(project, checkoutPath);
-  writeGradleToolchainProperties(checkoutPath, gradleToolchainEnvironment);
-  writeJson(path.join(outputDirectory, "checkout-setup.json"), checkoutSetup);
-  const workspacePath = project.syntheticMavenTargetFile
+  const checkoutSetup = environmentRequired
+    ? { reusedQualifiedPreparation: true, checkout: checkoutPath }
+    : cloneProject(project, checkoutPath);
+  if (!environmentRequired) {
+    writeGradleToolchainProperties(checkoutPath, gradleToolchainEnvironment);
+    writeJson(path.join(outputDirectory, "checkout-setup.json"), checkoutSetup);
+  }
+  const preparedRepositoryPath = environmentRequired ? checkoutPath : project.syntheticMavenTargetFile
     ? syntheticWorkspacePath
     : checkoutSetup.requiresMaterializedWorkspace ||
         gradleToolchainEnvironment
       ? materializeWorkspace(checkoutPath, materializedWorkspacePath)
     : checkoutPath;
-  const runtimeRelativeFile = project.syntheticMavenTargetFile
-    ? project.syntheticMavenTargetFile
-    : project.relativeFile;
   if (project.syntheticMavenTargetFile) {
-    createSyntheticMavenWorkspace(project, checkoutPath, workspacePath);
+    createSyntheticMavenWorkspace(project, checkoutPath, preparedRepositoryPath);
   } else {
     const expectedFile = path.join(checkoutPath, ...project.relativeFile.split("/"));
     if (!fs.existsSync(expectedFile)) {
       throw new Error(`Pinned T1 source file does not exist: ${expectedFile}`);
     }
   }
+  const { workspacePath, runtimeRelativeFile } = resolvePreparedWorkspace(
+    project,
+    preparedRepositoryPath,
+  );
   const projectEnvironment = discoverProjectEnvironment(
     project,
     checkoutPath,
@@ -1701,7 +1897,7 @@ async function main() {
     gradleToolchainEnvironment,
   );
 
-  const vscodeExecutablePath = await downloadAndUnzipVSCode("stable");
+  const vscodeExecutablePath = await downloadAndUnzipVSCode(vscodeVersion);
   const profile = getTestProfilePaths(vscodeExecutablePath);
   const removedConflictingExtensions = uninstallConflictingProviderExtensions(
     vscodeExecutablePath,
@@ -1794,8 +1990,18 @@ async function main() {
     path.join(outputDirectory, "vscode-settings.json"),
     vscodeSettings,
   );
-  const driver = new VscodeDriver({
-    vscodeVersion: "stable",
+  const preparedWorkspaceSnapshot = snapshotPreparedWorkspace(
+    project,
+    preparedRepositoryPath,
+    { workspacePath, runtimeRelativeFile },
+    environmentProof?.lock?.preparedInputs.map((input) => input.path) ?? [],
+  );
+  writeJson(
+    path.join(outputDirectory, "prepared-workspace-evidence.json"),
+    preparedWorkspaceSnapshot,
+  );
+  const driver = new PreparedWorkspaceDriver({
+    vscodeVersion,
     extensionPath: importExtensionPath,
     workspacePath,
     workspaceTrust: "disabled",
@@ -1805,8 +2011,21 @@ async function main() {
   let onboarding = null;
   let error = null;
   let finalResult = null;
+  const recordProviderLoad = (observation) => {
+    activeProviderLoad = observation;
+    writeJson(path.join(outputDirectory, "provider-observation.json"), observation);
+    return observation;
+  };
   try {
     await driver.launch();
+    if (environmentRequired) {
+      const metadataPath = path.join(outputDirectory, "run-metadata.json");
+      writeJson(metadataPath, {
+        ...JSON.parse(fs.readFileSync(metadataPath, "utf8")),
+        ideStarted: true, workspacePath, preparedRepositoryPath, runtimeRelativeFile,
+      });
+    }
+    verifyActualWorkspace(driver, preparedWorkspaceSnapshot, outputDirectory);
     await saveScreenshot(driver, outputDirectory, "01-workbench-ready");
     if (provider === "intellij") {
       onboarding = await completeIntellijOnboarding(driver, outputDirectory);
@@ -1822,71 +2041,64 @@ async function main() {
       Math.max(0, deadline - Date.now()),
       outputDirectory,
     );
-    const observedProviderLoad = await waitForProviderIdleAfterLog(
+    recordProviderLoad(buildProviderLoadResult(providerLog, null));
+    const observedProviderLoad = recordProviderLoad(await waitForProviderIdleAfterLog(
       driver,
       provider,
       profile,
       deadline,
       outputDirectory,
       providerLog,
+    ));
+    let sourceResult = await collectSourceResultIfReady(
+      driver, sourceResultPath, deadline, outputDirectory,
+      observedProviderLoad, project, provider,
     );
-    const sourceResult = fs.existsSync(sourceResultPath)
-      ? JSON.parse(fs.readFileSync(sourceResultPath, "utf8"))
-      : observedProviderLoad.importStatus === "ready"
-        ? await waitForT1Result(
-            driver,
-            sourceResultPath,
-            deadline,
-            outputDirectory,
-          )
-        : {
-            schemaVersion: 1,
-            project: project.id,
-            product: provider,
-            status: "failure",
-            sourceReadyAt: null,
-            sourceAttempts: 0,
-            failureCategory: observedProviderLoad.failureCategory,
-            error: null,
-          };
     const diagnosticFiles = [...new Set([
       runtimeRelativeFile,
-      ...(project.diagnosticProbeFiles ?? []),
+      ...(project.diagnosticProbeFiles ?? []).map((file) =>
+        rebaseRepositoryFile(preparedRepositoryPath, workspacePath, file),
+      ),
     ])];
-    const diagnostics = await captureStableDiagnostics(
+    let diagnostics = await captureStableDiagnostics(
       driver,
       diagnosticFiles,
       outputDirectory,
     );
+    let providerLoad = recordProviderLoad(await observeFinalProviderLoad(
+      driver, provider, profile, deadline, outputDirectory, observedProviderLoad.log,
+    ));
+    if (
+      Number(sourceResult.sourceAttempts ?? 0) === 0 &&
+      providerLoad.importStatus === "ready"
+    ) {
+      sourceResult = await collectSourceResultIfReady(
+        driver, sourceResultPath, deadline, outputDirectory,
+        providerLoad, project, provider,
+      );
+      if (Number(sourceResult.sourceAttempts ?? 0) > 0) {
+        diagnostics = await captureStableDiagnostics(
+          driver, diagnosticFiles, outputDirectory,
+        );
+        providerLoad = recordProviderLoad(await observeFinalProviderLoad(
+          driver, provider, profile, deadline, outputDirectory, providerLoad.log,
+        ));
+      }
+    }
     const sourceReady =
       sourceResult.status === "source-ready" &&
       Boolean(sourceResult.sourceReadyAt) &&
       sourceResult.documentSymbolReady === true &&
       sourceResult.hoverReady === true &&
       !sourceResult.error;
-    const errorCount = Number(diagnostics.counts?.error ?? 0);
-    const warningCount = Number(diagnostics.counts?.warning ?? 0);
-    const finalProviderLoad =
-      observedProviderLoad.importStatus === "ready" && provider !== "oracle"
-        ? buildProviderLoadResult(
-            providerLog,
-            await waitForProviderIdle(
-              driver,
-              provider,
-              profile,
-              Math.max(0, deadline - Date.now()),
-              outputDirectory,
-            ),
-          )
-        : observedProviderLoad;
-    const providerLoad = refreshProviderLoadEvidence(
-      finalProviderLoad,
-      provider,
-      profile,
-    );
+    const errorCount = environmentRequired && !diagnostics.diagnosticsCaptured
+      ? null : Number(diagnostics.counts?.error ?? 0);
+    const warningCount = environmentRequired && !diagnostics.diagnosticsCaptured
+      ? null : Number(diagnostics.counts?.warning ?? 0);
     const normalizedEvidence = createNormalizedEvidence({
       project: project.id,
       provider,
+      ...activeEnvironmentRun,
       operatingSystem:
         process.env.T1_OPERATING_SYSTEM ?? process.platform,
       effectiveTimeoutSeconds,
@@ -1903,8 +2115,7 @@ async function main() {
     finalResult = {
       ...sourceResult,
       schemaVersion: 2,
-      ruleVersion: T1_RULE_VERSION,
-      collectorVersion: T1_COLLECTOR_VERSION,
+      ...environmentResultFields(normalizedEvidence, classification),
       harnessCommit,
       adapterVersion: providerEvidenceVersions[provider],
       operatingSystem: process.env.T1_OPERATING_SYSTEM ?? process.platform,
@@ -1965,8 +2176,7 @@ async function main() {
     };
     const ruleEvidence = {
       schemaVersion: 2,
-      ruleVersion: T1_RULE_VERSION,
-      collectorVersion: T1_COLLECTOR_VERSION,
+      ...environmentResultFields(normalizedEvidence, classification),
       harnessCommit,
       adapterVersion: providerEvidenceVersions[provider],
       provider,
@@ -2000,7 +2210,7 @@ async function main() {
       diagnosticsStable: diagnostics.stable,
       errorCount,
       warningCount,
-      result: successful ? "PASS" : "FAIL",
+      result: classification.verdict,
       failureCategory: classification.failureCategory,
       failedPhase: classification.failedPhase,
       reasonCodes: classification.reasonCodes,
@@ -2026,6 +2236,12 @@ async function main() {
       verdict: finalResult.verdict,
       reasonCodes: finalResult.reasonCodes,
       ruleVersion: finalResult.ruleVersion,
+      ...(environmentRequired ? {
+        environmentState: finalResult.environmentState,
+        evaluationEligible: finalResult.evaluationEligible,
+        eligibility: finalResult.eligibility,
+        comparisonMode: finalResult.comparisonMode,
+      } : {}),
       loadStatus: finalResult.loadStatus,
       errorCount,
       warningCount,
@@ -2059,23 +2275,22 @@ async function main() {
     const completedAt = new Date();
     const harnessError =
       caught instanceof Error ? caught.stack : String(caught);
+    const providerLoad = activeProviderLoad ?? existingResult.providerLoad ?? {
+      loaded: existingResult.providerLoaded === true,
+      importCompleted: existingResult.providerImportCompleted === true,
+      importStatus: existingResult.providerImportStatus ?? "not-loaded",
+      terminalState: existingResult.providerTerminalState ?? null,
+      log: {},
+      ui: null,
+    };
     const normalizedEvidence = createNormalizedEvidence({
       project: project.id,
       provider,
+      ...activeEnvironmentRun,
       operatingSystem:
         process.env.T1_OPERATING_SYSTEM ?? process.platform,
       effectiveTimeoutSeconds,
-      providerLoad: {
-        loaded: existingResult.providerLoaded === true,
-        importCompleted:
-          existingResult.providerImportCompleted === true,
-        importStatus:
-          existingResult.providerImportStatus ?? "not-loaded",
-        terminalState:
-          existingResult.providerTerminalState ?? null,
-        log: existingResult.providerLoad?.log ?? {},
-        ui: existingResult.providerLoad?.ui ?? null,
-      },
+      providerLoad,
       sourceResult: existingResult,
       sourceReady: Boolean(existingResult.sourceReadyAt),
       diagnostics: {
@@ -2096,18 +2311,18 @@ async function main() {
     finalResult = {
       ...existingResult,
       schemaVersion: 2,
-      ruleVersion: T1_RULE_VERSION,
-      collectorVersion: T1_COLLECTOR_VERSION,
+      ...environmentResultFields(normalizedEvidence, classification),
       harnessCommit,
       adapterVersion: providerEvidenceVersions[provider],
       verdict: classification.verdict,
       status: classification.status,
       operatingSystem: process.env.T1_OPERATING_SYSTEM ?? process.platform,
       sourceReady: Boolean(existingResult.sourceReadyAt),
-      providerLoaded: false,
-      providerImportCompleted: false,
-      providerImportStatus: "not-loaded",
-      providerTerminalState: null,
+      providerLoad,
+      providerLoaded: providerLoad.loaded,
+      providerImportCompleted: providerLoad.importCompleted,
+      providerImportStatus: providerLoad.importStatus,
+      providerTerminalState: providerLoad.terminalState,
       providerState: normalizedEvidence.providerEvidence.state,
       projectHealth: normalizedEvidence.projectEvidence.health,
       semanticState: normalizedEvidence.semanticEvidence.state,
@@ -2117,8 +2332,10 @@ async function main() {
       loadStatus: classification.loadStatus,
       failureCategory: classification.failureCategory,
       failedPhase: classification.failedPhase,
-      errorCount: Number(existingResult.errorCount ?? 0),
-      warningCount: Number(existingResult.warningCount ?? 0),
+      errorCount: environmentRequired && !existingResult.diagnosticsCaptured
+        ? null : existingResult.errorCount ?? 0,
+      warningCount: environmentRequired && !existingResult.diagnosticsCaptured
+        ? null : existingResult.warningCount ?? 0,
       diagnosticsCaptured: Boolean(existingResult.diagnosticsCaptured),
       completedAt: completedAt.toISOString(),
       totalDurationMs: completedAt.getTime() - processStartedAt.getTime(),
@@ -2129,18 +2346,38 @@ async function main() {
       normalizedEvidence,
     );
     writeJson(resultPath, finalResult);
+    writeJson(path.join(outputDirectory, "rule-evidence.json"), {
+      ...environmentResultFields(normalizedEvidence, classification),
+      result: classification.verdict,
+      reasonCodes: classification.reasonCodes,
+      failureCategory: classification.failureCategory,
+      harnessCommit,
+      error: harnessError,
+    });
   } finally {
-    await driver.close();
+    let closeError = null;
+    try {
+      await driver.close();
+    } catch (caught) {
+      closeError = caught;
+    }
     collectProfileEvidence(profile, outputDirectory, {
-      ruleVersion: T1_RULE_VERSION,
-      collectorVersion: T1_COLLECTOR_VERSION,
+      ...runVersions,
       harnessCommit,
       adapterVersion: providerEvidenceVersions[provider],
     });
     writeJson(path.join(outputDirectory, "run-metadata.json"), {
       schemaVersion: 2,
-      ruleVersion: T1_RULE_VERSION,
-      collectorVersion: T1_COLLECTOR_VERSION,
+      ...runVersions,
+      ...(environmentRequired ? {
+        environmentRequired,
+        environmentState: environmentProof.environment.state,
+        environmentEvidence: environmentProof.environment,
+        evaluationEligible: finalResult?.evaluationEligible ?? false,
+        comparisonMode: "prebuilt-workspace",
+        dependencyCacheMode: "prebuilt-isolated",
+      } : {}),
+      vscodeVersion,
       harnessCommit,
       adapterVersion: providerEvidenceVersions[provider],
       project: project.id,
@@ -2148,6 +2385,9 @@ async function main() {
       commit: project.commit,
       relativeFile: project.relativeFile,
       runtimeRelativeFile,
+      preparedRepositoryPath,
+      workspacePath,
+      actualWorkspacePath: driver.getWorkspaceRoot(),
       sourceSymbol: project.sourceSymbol,
       provider,
       providerExtension: providerExtensions[provider],
@@ -2164,6 +2404,7 @@ async function main() {
         providerSetup?.projectJava.distribution ?? "temurin",
       providerRuntimeJava: providerSetup?.runtimeJava ?? null,
       projectJavaHome: process.env.T1_PROJECT_JAVA_HOME ?? null,
+      buildJavaHome: process.env.T1_BUILD_JAVA_HOME ?? null,
       languageServerJavaHome:
         process.env.T1_LANGUAGE_SERVER_JAVA_HOME ?? null,
       mavenHome: process.env.T1_MAVEN_HOME ?? null,
@@ -2179,6 +2420,7 @@ async function main() {
     if (finalResult) {
       appendGithubSummary(finalResult);
     }
+    if (closeError) throw closeError;
   }
   if (error) {
     console.error(error instanceof Error ? error.stack : String(error));

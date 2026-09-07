@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@vscjava/vscode-autotest": "0.7.24",
-    "@vscode/test-electron": "3.1.0"
+    "@vscode/test-electron": "3.1.0",
+    "fast-xml-parser": "5.11.1"
   }
 }

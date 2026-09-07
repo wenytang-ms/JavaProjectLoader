@@ -641,11 +641,60 @@ export function createProjectSettings(
   };
   const languageServerJavaHome = environment.T1_LANGUAGE_SERVER_JAVA_HOME;
   const projectJavaHome = environment.T1_PROJECT_JAVA_HOME;
+  const buildJavaHome = environment.T1_BUILD_JAVA_HOME ?? projectJavaHome;
   if (languageServerJavaHome) {
     settings["java.jdt.ls.java.home"] = languageServerJavaHome;
   }
-  if (setup.buildTool === "gradle" && projectJavaHome) {
-    settings["java.import.gradle.java.home"] = projectJavaHome;
+  if (projectJavaHome) {
+    const homes = environment.T1_JAVA_HOMES_JSON
+      ? JSON.parse(environment.T1_JAVA_HOMES_JSON)
+      : [];
+    if (!Array.isArray(homes)) {
+      throw new Error("T1_JAVA_HOMES_JSON must be an array.");
+    }
+    const candidates = [
+      {
+        version: providerSetup.projectJava.version,
+        home: projectJavaHome,
+        default: true,
+      },
+      ...(buildJavaHome
+        ? [{
+            version: providerSetup.buildJava?.version ??
+              providerSetup.projectJava.version,
+            home: buildJavaHome,
+          }]
+        : []),
+      ...homes,
+      ...(languageServerJavaHome && providerSetup.runtimeJava.version
+        ? [{
+            version: providerSetup.runtimeJava.version,
+            home: languageServerJavaHome,
+          }]
+        : []),
+    ];
+    const runtimes = new Map();
+    for (const candidate of candidates) {
+      const major = String(candidate.version).match(/^(?:1\.)?(\d+)/)?.[1];
+      if (!major || typeof candidate.home !== "string" || !candidate.home) {
+        throw new Error("Invalid provisioned Java execution environment.");
+      }
+      const name = Number(major) < 9 ? `JavaSE-1.${major}` : `JavaSE-${major}`;
+      if (!runtimes.has(name)) {
+        runtimes.set(name, {
+          name,
+          path: candidate.home,
+          ...(candidate.default ? { default: true } : {}),
+        });
+      }
+    }
+    settings["java.configuration.runtimes"] = [...runtimes.values()];
+    if (environment.T1_REQUIRE_ENVIRONMENT_READY === "1") {
+      settings["java.configuration.detectJdksAtStart"] = false;
+    }
+  }
+  if (setup.buildTool === "gradle" && buildJavaHome) {
+    settings["java.import.gradle.java.home"] = buildJavaHome;
   }
   if (setup.buildTool === "maven" && environment.T1_MAVEN_HOME) {
     settings["maven.executable.path"] = path.join(
@@ -665,7 +714,7 @@ function javaExecutable(javaHome) {
   );
 }
 
-function inspectJavaHome(javaHome, expectedVersion, label) {
+export function inspectJavaHome(javaHome, expectedVersion, label) {
   requireString(javaHome, label);
   const executable = javaExecutable(javaHome);
   if (!fs.existsSync(executable)) {
@@ -685,14 +734,27 @@ function inspectJavaHome(javaHome, expectedVersion, label) {
       `${label} expected Java ${expectedVersion}, got: ${output.split("\n")[0]}`,
     );
   }
+  const compiler = path.join(javaHome, "bin", process.platform === "win32" ? "javac.exe" : "javac");
   return {
     home: javaHome,
     expectedVersion: String(expectedVersion),
     versionLine: output.split("\n")[0],
+    exactVersion: output.match(/version "([^"]+)"/)?.[1],
+    releaseSha256: fs.existsSync(path.join(javaHome, "release"))
+      ? createHash("sha256")
+          .update(fs.readFileSync(path.join(javaHome, "release")))
+          .digest("hex")
+      : null,
+    executableSha256: createHash("sha256")
+      .update(fs.readFileSync(executable))
+      .digest("hex"),
+    compilerSha256: fs.existsSync(compiler)
+      ? createHash("sha256").update(fs.readFileSync(compiler)).digest("hex")
+      : null,
   };
 }
 
-function findSdkManager(sdkRoot) {
+export function findSdkManager(sdkRoot) {
   const executableName =
     process.platform === "win32" ? "sdkmanager.bat" : "sdkmanager";
   const candidates = [
@@ -719,7 +781,7 @@ function findSdkManager(sdkRoot) {
   return sdkManager;
 }
 
-function runSdkManager(sdkManager, sdkRoot, packages, javaHome) {
+export function runSdkManager(sdkManager, sdkRoot, packages, javaHome) {
   const args = [`--sdk_root=${sdkRoot}`, ...packages];
   const result = spawnSync(sdkManager, args, {
     encoding: "utf8",
@@ -803,7 +865,7 @@ function appendGithubEnvironment(filePath, line) {
   }
 }
 
-function provisionMaven(setup, environment) {
+export function provisionMaven(setup, environment) {
   const version = setup.buildToolVersion;
   const installRoot = path.join(
     environment.RUNNER_TOOL_CACHE ??
@@ -852,7 +914,7 @@ function provisionMaven(setup, environment) {
     environment: {
       ...process.env,
       ...environment,
-      JAVA_HOME: environment.T1_PROJECT_JAVA_HOME,
+      JAVA_HOME: environment.T1_BUILD_JAVA_HOME ?? environment.T1_PROJECT_JAVA_HOME,
     },
     windowsShell: true,
   });
@@ -931,6 +993,24 @@ export function provisionProjectEnvironment(
     providerSetup.projectJava.version,
     "T1_PROJECT_JAVA_HOME",
   );
+  if (providerSetup.buildJava) {
+    result.buildJava = inspectJavaHome(
+      environment.T1_BUILD_JAVA_HOME,
+      providerSetup.buildJava.version,
+      "T1_BUILD_JAVA_HOME",
+    );
+  }
+  if (environment.T1_JAVA_HOMES_JSON) {
+    const homes = JSON.parse(environment.T1_JAVA_HOMES_JSON);
+    if (!Array.isArray(homes)) {
+      throw new Error("T1_JAVA_HOMES_JSON must be an array.");
+    }
+    result.javaInstallations = homes.map((entry) => ({
+      ...inspectJavaHome(entry.home, entry.version, "Provisioned Java home"),
+      distribution: entry.distribution,
+      role: entry.role,
+    }));
+  }
   result.maven = setup.buildTool === "maven"
     ? provisionMaven(setup, environment)
     : null;

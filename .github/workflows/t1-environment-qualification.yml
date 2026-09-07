@@ -1,0 +1,101 @@
+name: Qualify T1 project environments
+on:
+  workflow_call:
+    inputs:
+      matrix:
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  qualify:
+    name: Environment / ${{ matrix.project.id }} / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix: ${{ fromJSON(inputs.matrix) }}
+    env:
+      T1_ENVIRONMENT_DIRECTORY: ${{ github.workspace }}/.local-t1/environment/${{ matrix.project.id }}
+      T1_OPERATING_SYSTEM: ${{ matrix.os }}
+      T1_REQUIRE_ENVIRONMENT_READY: "1"
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: lab/t1-action/package-lock.json
+      - name: Install environment resolver
+        working-directory: lab/t1-action
+        run: npm ci
+      - id: discover
+        name: Discover requirements from the pinned checkout
+        continue-on-error: true
+        shell: pwsh
+        env:
+          T1_PROJECT: ${{ matrix.project.id }}
+        run: |
+          node (Join-Path "lab" "t1-action" "environment-workflow.mjs") `
+            --phase discover --project $env:T1_PROJECT --os $env:T1_OPERATING_SYSTEM `
+            --directory $env:T1_ENVIRONMENT_DIRECTORY
+      - id: initial
+        if: steps.discover.outcome == 'success' && steps.discover.outputs.state != 'ENV_BLOCKED'
+        continue-on-error: true
+        uses: ./.github/actions/t1-environment
+        with:
+          project: ${{ matrix.project.id }}
+          operating-system: ${{ matrix.os }}
+          directory: ${{ env.T1_ENVIRONMENT_DIRECTORY }}
+      - id: refine
+        name: Refine using the native project model
+        if: steps.initial.outcome == 'success'
+        continue-on-error: true
+        shell: pwsh
+        env:
+          T1_PROJECT: ${{ matrix.project.id }}
+        run: |
+          node (Join-Path "lab" "t1-action" "environment-workflow.mjs") `
+            --phase refine --project $env:T1_PROJECT --os $env:T1_OPERATING_SYSTEM `
+            --directory $env:T1_ENVIRONMENT_DIRECTORY
+      - id: refined
+        if: steps.refine.outputs.modelReady == 'true' && steps.refine.outputs.reprovision == 'true'
+        continue-on-error: true
+        uses: ./.github/actions/t1-environment
+        with:
+          project: ${{ matrix.project.id }}
+          operating-system: ${{ matrix.os }}
+          directory: ${{ env.T1_ENVIRONMENT_DIRECTORY }}
+      - name: Qualify and lock the effective environment
+        if: steps.refine.outputs.modelReady == 'true' && (steps.refine.outputs.reprovision != 'true' || steps.refined.outcome == 'success')
+        continue-on-error: true
+        shell: pwsh
+        env:
+          T1_PROJECT: ${{ matrix.project.id }}
+        run: |
+          node (Join-Path "lab" "t1-action" "environment-workflow.mjs") `
+            --phase qualify --project $env:T1_PROJECT --os $env:T1_OPERATING_SYSTEM `
+            --directory $env:T1_ENVIRONMENT_DIRECTORY
+      - name: Preserve a non-qualified result when setup did not complete
+        if: always()
+        shell: pwsh
+        env:
+          T1_PROJECT: ${{ matrix.project.id }}
+        run: |
+          node (Join-Path "lab" "t1-action" "environment-workflow.mjs") `
+            --phase record-failure --project $env:T1_PROJECT --os $env:T1_OPERATING_SYSTEM `
+            --directory $env:T1_ENVIRONMENT_DIRECTORY
+      - name: Upload environment plan, lock, and native evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: t1-environment-${{ matrix.project.id }}-${{ matrix.os }}
+          path: |
+            ${{ env.T1_ENVIRONMENT_DIRECTORY }}/*.json
+            ${{ env.T1_ENVIRONMENT_DIRECTORY }}/*.log
+            ${{ env.T1_ENVIRONMENT_DIRECTORY }}/effective-pom.xml
+          if-no-files-found: error
+          retention-days: 30

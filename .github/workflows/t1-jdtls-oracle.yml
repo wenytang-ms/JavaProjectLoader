@@ -22,6 +22,11 @@ on:
         options:
           - windows-latest
           - macos-latest
+      vscode_version:
+        description: "Exact shared VS Code version for the comparison"
+        required: true
+        default: "1.136.1"
+        type: string
       exclude_cases:
         description: "Comma-separated project:provider:os cases to omit"
         required: false
@@ -37,6 +42,7 @@ jobs:
     outputs:
       projects: ${{ steps.matrix.outputs.projects }}
       matrix: ${{ steps.matrix.outputs.matrix }}
+      qualification_matrix: ${{ steps.matrix.outputs.qualification_matrix }}
     steps:
       - uses: actions/checkout@v5
 
@@ -56,9 +62,18 @@ jobs:
             --github-output "$GITHUB_OUTPUT" \
             --summary "$GITHUB_STEP_SUMMARY"
 
+  qualify:
+    needs: prepare
+    uses: ./.github/workflows/t1-environment-qualification.yml
+    with:
+      matrix: ${{ needs.prepare.outputs.qualification_matrix }}
+
   compare:
     name: Compare / ${{ matrix.project.id }} / ${{ matrix.provider }}
-    needs: prepare
+    if: ${{ always() && needs.prepare.result == 'success' }}
+    needs:
+      - prepare
+      - qualify
     timeout-minutes: 80
     strategy:
       fail-fast: false
@@ -69,8 +84,13 @@ jobs:
       T1_OUTPUT_DIR: ${{ github.workspace }}/lab/t1-action/results/${{ matrix.project.id }}/${{ matrix.provider }}/${{ matrix.os }}
       T1_OPERATING_SYSTEM: ${{ matrix.os }}
       T1_MIN_TIMEOUT_SECONDS: "1800"
+      T1_VSCODE_VERSION: ${{ inputs.vscode_version || '1.136.1' }}
+      T1_REQUIRE_ENVIRONMENT_READY: "1"
+      T1_ENVIRONMENT_DIRECTORY: ${{ github.workspace }}/.local-t1/environment/${{ matrix.project.id }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v5
         with:
@@ -78,114 +98,37 @@ jobs:
           cache: npm
           cache-dependency-path: lab/t1-action/package-lock.json
 
-      - name: Set up project Go
-        if: matrix.environment.goVersion != ''
-        uses: actions/setup-go@v6
-        with:
-          go-version: ${{ matrix.environment.goVersion }}
-          cache: false
-
-      - name: Set up additional project toolchain JDK
-        if: matrix.environment.toolchainJavaVersions != ''
-        uses: actions/setup-java@v5
-        with:
-          distribution: ${{ matrix.environment.toolchainJavaDistribution }}
-          java-version: ${{ matrix.environment.toolchainJavaVersions }}
-          overwrite-settings: false
-
-      - name: Record additional project toolchain JDK
-        if: matrix.environment.toolchainJavaVersions != ''
-        shell: pwsh
-        run: |
-          $versions = "${{ matrix.environment.toolchainJavaVersions }}" -split "\s+"
-          $homes = foreach ($version in $versions) {
-            $javaHome = Get-ChildItem Env: |
-              Where-Object Name -Like "JAVA_HOME_${version}_*" |
-              Select-Object -First 1
-            if (-not $javaHome) {
-              throw "actions/setup-java did not expose JAVA_HOME for JDK $version"
-            }
-            "JDK$version=$($javaHome.Value)" |
-              Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-            $javaHome.Value
-          }
-          "T1_TOOLCHAIN_JAVA_HOMES=$($homes -join ';')" |
-            Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
-      - name: Set up project JDK
-        uses: actions/setup-java@v5
-        with:
-          distribution: ${{ matrix.environment.projectJavaDistribution }}
-          java-version: ${{ matrix.environment.projectJavaVersion }}
-          overwrite-settings: false
-
-      - name: Record project JDK home
-        shell: pwsh
-        run: |
-          "T1_PROJECT_JAVA_HOME=$env:JAVA_HOME" |
-            Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "JDK${{ matrix.environment.projectJavaVersion }}=$env:JAVA_HOME" |
-            Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
-      - name: Set up provider runtime JDK
-        if: matrix.environment.runtimeJavaSource == 'setup-java'
-        uses: actions/setup-java@v5
-        with:
-          distribution: ${{ matrix.environment.runtimeJavaDistribution }}
-          java-version: ${{ matrix.environment.runtimeJavaVersion }}
-          overwrite-settings: false
-
-      - name: Record provider runtime JDK
-        if: matrix.environment.runtimeJavaSource == 'setup-java'
-        shell: pwsh
-        run: |
-          "T1_LANGUAGE_SERVER_JAVA_HOME=$env:JAVA_HOME" |
-            Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
-      - name: Set up Gradle wrapper bootstrap
-        if: matrix.environment.bootstrapGradleVersion != ''
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: ${{ matrix.environment.bootstrapGradleVersion }}
-
-      - name: Set up Android SDK tooling JDK
-        if: matrix.environment.requiresAndroidSdk == true
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: 17
-          overwrite-settings: false
-
-      - name: Record Android SDK tooling JDK
-        if: matrix.environment.requiresAndroidSdk == true
-        shell: pwsh
-        run: |
-          "T1_ANDROID_SDK_JAVA_HOME=$env:JAVA_HOME" |
-            Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
-      - name: Remove setup-java Maven settings from Gradle imports
-        if: matrix.environment.buildTool == 'gradle'
-        shell: pwsh
-        run: |
-          $settings = Join-Path $HOME ".m2/settings.xml"
-          if (Test-Path $settings) {
-            Remove-Item -Force $settings
-          }
-
-      - name: Set up declared project environment
-        shell: pwsh
-        run: |
-          $resultPath = Join-Path $env:RUNNER_TEMP "t1-project-environment-${{ matrix.project.id }}-${{ matrix.provider }}.json"
-          "T1_PROJECT_ENVIRONMENT_RESULT=$resultPath" |
-            Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          node lab/t1-action/project-environment.mjs `
-            --project "${{ matrix.project.id }}" `
-            --provider "${{ matrix.provider }}" `
-            --result $resultPath
-
       - name: Install T1 runner
         working-directory: lab/t1-action
         run: npm ci
+
+      - name: Download independently qualified environment
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: t1-environment-${{ matrix.project.id }}-${{ matrix.os }}
+          path: ${{ env.T1_ENVIRONMENT_DIRECTORY }}
+
+      - id: environment
+        name: Replay the locked project environment
+        continue-on-error: true
+        uses: ./.github/actions/t1-environment
+        with:
+          project: ${{ matrix.project.id }}
+          operating-system: ${{ matrix.os }}
+          directory: ${{ env.T1_ENVIRONMENT_DIRECTORY }}
+          locked: "true"
+
+      - name: Reproduce the neutral native baseline before starting the provider
+        if: steps.environment.outcome == 'success' && steps.environment.outputs.state != 'ENV_BLOCKED'
+        continue-on-error: true
+        shell: pwsh
+        env:
+          T1_PROJECT: ${{ matrix.project.id }}
+        run: |
+          node (Join-Path "lab" "t1-action" "environment-workflow.mjs") `
+            --phase replay --project $env:T1_PROJECT --os $env:T1_OPERATING_SYSTEM `
+            --directory $env:T1_ENVIRONMENT_DIRECTORY
 
       - name: Run provider T1 on Windows
         if: runner.os == 'Windows'

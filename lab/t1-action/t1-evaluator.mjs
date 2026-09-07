@@ -2,7 +2,69 @@ import { analyzeStatusProblemCounts } from "./provider-evidence.mjs";
 
 export const T1_RULE_VERSION = "t1-v4";
 export const T1_COLLECTOR_VERSION = "t1-v4";
+export const T1_ENVIRONMENT_RULE_VERSION = "t1-v5";
+export const T1_ENVIRONMENT_COLLECTOR_VERSION = "t1-v5";
 export const T1_EVIDENCE_SCHEMA_VERSION = 1;
+
+const environmentStates = new Set([
+  "ENV_READY",
+  "ENV_BLOCKED",
+  "ENV_UNVERIFIED",
+  "PROJECT_BASELINE_FAILED",
+]);
+
+function environmentReason(value) {
+  return typeof value === "string"
+    ? value
+    : value?.code ?? value?.reason ?? value?.message ?? JSON.stringify(value);
+}
+
+export function createEnvironmentEvidence({
+  environmentRequired = false,
+  environment = null,
+} = {}) {
+  const required = environmentRequired === true;
+  const state = environmentStates.has(environment?.state)
+    ? environment.state
+    : "ENV_UNVERIFIED";
+  const blockers = Array.isArray(environment?.blockers) ? environment.blockers : [];
+  const unresolved = Array.isArray(environment?.unresolved) ? environment.unresolved : [];
+  const category = {
+    ENV_BLOCKED: "environment-blocked",
+    ENV_UNVERIFIED: "environment-unverified",
+    PROJECT_BASELINE_FAILED: "project-baseline-failed",
+  }[state];
+  const reasonCodes = unique([
+    ...(required && category ? [category] : []),
+    ...(required && !environment ? ["environment-evidence-missing"] : []),
+    ...(required && environment && !environment.state
+      ? ["environment-state-missing"]
+      : []),
+    ...(required && environment?.state && !environmentStates.has(environment.state)
+      ? ["environment-state-invalid"]
+      : []),
+    ...(Array.isArray(environment?.reasonCodes) ? environment.reasonCodes : []),
+    ...(Array.isArray(environment?.reasons) ? environment.reasons.map(environmentReason) : []),
+    ...blockers.map((value) => `environment-blocker:${environmentReason(value)}`),
+    ...unresolved.map((value) => `environment-unresolved:${environmentReason(value)}`),
+  ]);
+  const provenance = { ...environment?.provenance };
+  for (const field of ["project", "commit", "operatingSystem", "planHash", "lockHash"]) {
+    provenance[field] = environment?.[field] ?? provenance[field] ?? null;
+  }
+  return {
+    ...environment,
+    required,
+    state,
+    eligible: !required || state === "ENV_READY",
+    ruleVersion: required ? T1_ENVIRONMENT_RULE_VERSION : T1_RULE_VERSION,
+    provenance,
+    blockers,
+    unresolved,
+    reasonCodes,
+    reasons: reasonCodes,
+  };
+}
 
 const buildEvidenceNames = new Set([
   "gradle-build-failed",
@@ -104,13 +166,19 @@ export function createNormalizedEvidence({
   sourceResult,
   sourceReady,
   diagnostics,
+  environmentRequired = false,
+  environment = null,
   harnessError = null,
   harnessCommit = null,
-  collectorVersion = T1_COLLECTOR_VERSION,
+  collectorVersion,
   adapterVersion = null,
   collectionMode = "live",
   collectedAt = new Date().toISOString(),
 }) {
+  const environmentEvidence = createEnvironmentEvidence({
+    environmentRequired,
+    environment,
+  });
   const log = providerLoad?.log ?? {};
   const finalStatusBarText =
     providerLoad?.ui?.finalStatusBarText ?? log.statusBarText ?? "";
@@ -141,6 +209,11 @@ export function createNormalizedEvidence({
     diagnostics?.diagnosticsCaptured ??
     diagnostics?.captured ??
     Boolean(diagnostics);
+  if (environmentEvidence.required && !diagnosticsCaptured) {
+    for (const severity of Object.keys(snapshotCounts)) {
+      snapshotCounts[severity] = null;
+    }
+  }
   const diagnosticsStable = diagnostics?.stable === true;
   const diagnosticsState = diagnosticState({
     captured: diagnosticsCaptured,
@@ -150,8 +223,10 @@ export function createNormalizedEvidence({
   });
   return {
     schemaVersion: T1_EVIDENCE_SCHEMA_VERSION,
-    ruleVersion: T1_RULE_VERSION,
-    collectorVersion,
+    ruleVersion: environmentEvidence.ruleVersion,
+    collectorVersion: collectorVersion ?? (environmentEvidence.required
+      ? T1_ENVIRONMENT_COLLECTOR_VERSION
+      : T1_COLLECTOR_VERSION),
     collectionMode,
     collectedAt,
     harnessCommit,
@@ -160,6 +235,7 @@ export function createNormalizedEvidence({
     provider,
     operatingSystem,
     effectiveTimeoutSeconds: Number(effectiveTimeoutSeconds ?? 0),
+    environmentEvidence,
     providerEvidence: {
       state,
       loaded: providerLoad?.loaded === true,
@@ -206,6 +282,7 @@ export function createNormalizedEvidence({
       excludedCounts: normalizedCounts(diagnostics?.excludedCounts),
       statusProblemCounts,
       discrepancy:
+        diagnosticsCaptured &&
         statusProblemCounts !== null &&
         statusProblemCounts.errorCount !== snapshotCounts.error,
     },
@@ -234,11 +311,60 @@ function failure({
   };
 }
 
+function hasProviderFailure(evidence) {
+  return (evidence.providerEvidence?.providerFatalEvidence?.length ?? 0) > 0 ||
+    evidence.providerEvidence?.importStatus === "import-failed" ||
+    evidence.providerEvidence?.state === "error" ||
+    (evidence.projectEvidence?.buildEvidence?.length ?? 0) > 0;
+}
+
+export function evaluateT1Eligibility(evidence) {
+  const environment = createEnvironmentEvidence({
+    environmentRequired: evidence.environmentEvidence?.required === true ||
+      evidence.environmentRequired === true,
+    environment: evidence.environmentEvidence ?? evidence.environment,
+  });
+  if (!environment.eligible) {
+    const failureCategory = {
+      ENV_BLOCKED: "environment-blocked",
+      ENV_UNVERIFIED: "environment-unverified",
+      PROJECT_BASELINE_FAILED: "project-baseline-failed",
+    }[environment.state];
+    return {
+      verdict: "NOT_EVALUATED",
+      status: "blocked",
+      successful: false,
+      loadSuccessful: false,
+      loadStatus: failureCategory,
+      failureCategory,
+      failedPhase: "environment",
+      reasonCodes: environment.reasonCodes,
+      eligibility: "environment-ineligible",
+    };
+  }
+  if (environment.required &&
+      (evidence.harnessEvidence?.state === "error" || evidence.harnessEvidence?.error) &&
+      !hasProviderFailure(evidence)) {
+    return {
+      verdict: "NOT_EVALUATED",
+      status: "blocked",
+      successful: false,
+      loadSuccessful: false,
+      loadStatus: "runner-error",
+      failureCategory: "infrastructure-error",
+      failedPhase: "runner",
+      reasonCodes: ["harness-error", "infrastructure-error"],
+      eligibility: "infrastructure-ineligible",
+    };
+  }
+  return null;
+}
+
 export function evaluateT1(
   evidence,
-  ruleVersion = T1_RULE_VERSION,
+  ruleVersion = evidence.ruleVersion ?? T1_RULE_VERSION,
 ) {
-  if (ruleVersion !== T1_RULE_VERSION) {
+  if (![T1_RULE_VERSION, T1_ENVIRONMENT_RULE_VERSION].includes(ruleVersion)) {
     throw new Error(`Unsupported T1 rule version: ${ruleVersion}`);
   }
   if (evidence.schemaVersion !== T1_EVIDENCE_SCHEMA_VERSION) {
@@ -246,12 +372,19 @@ export function evaluateT1(
       `Unsupported normalized evidence schema: ${evidence.schemaVersion}`,
     );
   }
+  const ineligible = evaluateT1Eligibility(evidence);
+  if (ineligible) {
+    return ineligible;
+  }
   const provider = evidence.providerEvidence;
   const project = evidence.projectEvidence;
   const semantic = evidence.semanticEvidence;
   const diagnostics = evidence.diagnosticEvidence;
 
-  if (evidence.harnessEvidence.state === "error") {
+  const environmentRequired = evidence.environmentEvidence?.required === true ||
+    evidence.environmentRequired === true;
+  if (evidence.harnessEvidence.state === "error" &&
+      (!environmentRequired || !hasProviderFailure(evidence))) {
     return failure({
       loadStatus: "runner-error",
       failureCategory: "runner-error",
@@ -394,11 +527,24 @@ export function normalizedEvidenceFromArtifacts({
   diagnostics,
   runMetadata,
 }) {
-  if (normalizedEvidence) {
-    return normalizedEvidence;
-  }
-  if (result.normalizedEvidence) {
-    return result.normalizedEvidence;
+  const captured = normalizedEvidence ?? result.normalizedEvidence;
+  const environmentRequired = captured?.environmentEvidence?.required === true ||
+    captured?.environmentRequired === true ||
+    result.environmentRequired === true ||
+    result.environmentEvidence?.required === true ||
+    runMetadata?.environmentRequired === true ||
+    runMetadata?.environmentEvidence?.required === true;
+  const environment = captured?.environmentEvidence ??
+    result.environmentEvidence ?? result.environment ??
+    runMetadata?.environmentEvidence ?? runMetadata?.environment ??
+    (result.environmentState ? { state: result.environmentState } : null);
+  if (captured) {
+    // Historical evidence is returned untouched unless this run explicitly opted in.
+    return environmentRequired ? {
+      ...captured,
+      ruleVersion: T1_ENVIRONMENT_RULE_VERSION,
+      environmentEvidence: createEnvironmentEvidence({ environmentRequired, environment }),
+    } : captured;
   }
   const finalStatusBarText =
     ruleEvidence?.finalStatusBarText ??
@@ -476,6 +622,8 @@ export function normalizedEvidenceFromArtifacts({
     provider: result.product ?? result.provider,
     operatingSystem: result.operatingSystem ?? result.os,
     effectiveTimeoutSeconds: result.effectiveTimeoutSeconds,
+    environmentRequired,
+    environment,
     providerLoad,
     sourceResult,
     sourceReady: result.sourceReady === true,
@@ -494,7 +642,7 @@ export function normalizedEvidenceFromArtifacts({
           },
         },
     harnessError:
-      result.failureCategory === "runner-error"
+      ["runner-error", "infrastructure-error"].includes(result.failureCategory)
         ? result.error ?? "runner-error"
         : null,
     harnessCommit: runMetadata?.harnessCommit ?? null,
@@ -506,23 +654,29 @@ export function normalizedEvidenceFromArtifacts({
 }
 
 export function evidenceSufficiency(evidence, judgment) {
+  if (judgment.verdict === "NOT_EVALUATED") {
+    return {
+      sufficient: false,
+      reason: judgment.eligibility ?? "environment-ineligible",
+    };
+  }
   const decisiveFailure = judgment.reasonCodes.some((reason) =>
     /^(?:project-build-failure|provider-import-failure|provider-project-warning|provider-|semantic-|workspace-diagnostics-errors|harness-error)/
       .test(reason),
   );
-  const completeV4Pass =
+  const completePass =
     judgment.verdict === "PASS" &&
-    evidence.collectorVersion === T1_COLLECTOR_VERSION &&
+    [T1_COLLECTOR_VERSION, T1_ENVIRONMENT_COLLECTOR_VERSION].includes(evidence.collectorVersion) &&
     evidence.providerEvidence.state === "ready" &&
     evidence.semanticEvidence.state === "ready" &&
     evidence.diagnosticEvidence.scope === "workspace" &&
     evidence.diagnosticEvidence.state === "clean";
   return {
-    sufficient: decisiveFailure || completeV4Pass,
+    sufficient: decisiveFailure || completePass,
     reason: decisiveFailure
       ? "decisive-failure-evidence"
-      : completeV4Pass
-        ? "complete-v4-pass-evidence"
+      : completePass
+        ? `complete-${evidence.collectorVersion.replace("t1-", "")}-pass-evidence`
         : "legacy-or-incomplete-pass-evidence",
   };
 }

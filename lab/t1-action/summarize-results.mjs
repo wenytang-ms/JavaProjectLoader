@@ -1,6 +1,98 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  createEnvironmentEvidence,
+  evaluateT1Eligibility,
+  T1_RULE_VERSION,
+  T1_ENVIRONMENT_RULE_VERSION,
+} from "./t1-evaluator.mjs";
+
+function resultEligibility(row, environmentEvidence) {
+  const captured = row.normalizedEvidence ?? row.evidence;
+  const infrastructureError = ["runner-error", "infrastructure-error"].includes(row.failureCategory);
+  return evaluateT1Eligibility({
+    environmentEvidence,
+    harnessEvidence: captured?.harnessEvidence ?? row.harnessEvidence ?? {
+      state: infrastructureError ? "error" : "ok",
+      error: infrastructureError ? row.error ?? row.failureCategory : null,
+    },
+    providerEvidence: captured?.providerEvidence ?? row.providerEvidence ?? {
+      state: row.providerState ?? row.providerTerminalState,
+      importStatus: row.providerImportStatus,
+      providerFatalEvidence: [],
+    },
+    projectEvidence: captured?.projectEvidence ?? row.projectEvidence ?? {
+      buildEvidence: row.failureCategory === "project-build-failure"
+        ? ["project-build-failure"] : [],
+    },
+  });
+}
+
+export function resultEnvironment(row) {
+  if (!row || row.loadStatus === "missing-result" || row.verdict === "MISSING") {
+    return {
+      environmentRequired: null,
+      environmentState: "missing",
+      environmentEligible: null,
+      evaluationEligible: null,
+      eligibility: "incomplete",
+    };
+  }
+  const captured = row.environmentEvidence ??
+    row.normalizedEvidence?.environmentEvidence ?? row.evidence?.environmentEvidence;
+  const environmentRequired = row.environmentRequired === true ||
+    captured?.required === true;
+  const environmentEvidence = createEnvironmentEvidence({
+    environmentRequired,
+    environment: captured ?? row.environment ??
+      (row.environmentState ? { state: row.environmentState } : null),
+  });
+  const judgment = resultEligibility(row, environmentEvidence);
+  const eligibility = !environmentEvidence.eligible || row.environmentEligible === false ||
+    row.eligibility === "environment-ineligible"
+    ? "environment-ineligible"
+    : judgment?.eligibility === "infrastructure-ineligible" ||
+      row.eligibility === "infrastructure-ineligible"
+      ? "infrastructure-ineligible"
+      : row.verdict === "NOT_EVALUATED"
+        ? environmentRequired ? "infrastructure-ineligible" : "environment-ineligible"
+        : "eligible";
+  return {
+    environmentRequired,
+    environmentState: !environmentRequired && (
+      row.environmentState === "not-required" ||
+      (!captured && !row.environment && !row.environmentState)
+    ) ? "not-required" : environmentEvidence.state,
+    environmentEligible: eligibility !== "environment-ineligible",
+    evaluationEligible: eligibility === "eligible",
+    eligibility,
+    environmentEvidence,
+  };
+}
+
+function outcomeCounts(rows) {
+  const eligible = rows.filter((row) => row.eligibility === "eligible");
+  const success = eligible.filter((row) => row.verdict === "PASS").length;
+  const environmentIneligibleCount = rows.filter(
+    (row) => row.eligibility === "environment-ineligible",
+  ).length;
+  const infrastructureIneligibleCount = rows.filter(
+    (row) => row.eligibility === "infrastructure-ineligible",
+  ).length;
+  return {
+    total: rows.length,
+    success,
+    failure: rows.filter((row) => row.verdict === "FAIL").length,
+    eligibleCount: eligible.length,
+    eligibleFailureCount: eligible.filter((row) => row.verdict === "FAIL").length,
+    environmentIneligibleCount,
+    infrastructureIneligibleCount,
+    invalidCount: environmentIneligibleCount + infrastructureIneligibleCount,
+    missingCount: rows.filter((row) => row.eligibility === "incomplete").length,
+    successRate: eligible.length ? success / eligible.length : null,
+  };
+}
 
 function argument(name, fallback) {
   const index = process.argv.indexOf(name);
@@ -75,6 +167,11 @@ function writeCsv(filePath, rows) {
     "semanticState",
     "diagnosticState",
     "verdict",
+    "environmentRequired",
+    "environmentState",
+    "environmentEligible",
+    "evaluationEligible",
+    "eligibility",
     "failureCategory",
     "failedPhase",
     "reasonCodes",
@@ -96,9 +193,7 @@ function providerRows(rows) {
     const selected = rows.filter((row) => row.provider === provider);
     return {
       provider,
-      total: selected.length,
-      success: selected.filter((row) => row.verdict === "PASS").length,
-      failure: selected.filter((row) => row.verdict !== "PASS").length,
+      ...outcomeCounts(selected),
       importFailed: selected.filter(
         (row) => row.loadStatus === "import-failed",
       ).length,
@@ -127,9 +222,7 @@ function osRows(rows) {
       );
       return {
         operatingSystem,
-        total: selected.length,
-        success: selected.filter((row) => row.verdict === "PASS").length,
-        failure: selected.filter((row) => row.verdict !== "PASS").length,
+        ...outcomeCounts(selected),
       };
     },
   );
@@ -141,8 +234,21 @@ function markdown(summary) {
     "",
     `**Rule:** ${summary.ruleVersion}`,
     "",
-    `**Overall:** ${summary.successCount}/${summary.expectedCount} succeeded; ` +
-      `${summary.failureCount} failed; ${summary.missingCount} result artifact(s) missing.`,
+    `**Overall:** ${summary.successCount}/${summary.eligibleCount} eligible results succeeded; ` +
+      `${summary.failureCount} failed (including missing artifacts); ` +
+      `${summary.environmentIneligibleCount} environment-ineligible; ` +
+      `${summary.infrastructureIneligibleCount} infrastructure-ineligible; ` +
+      `${summary.missingCount} result artifact(s) missing; ${summary.expectedCount} scoped results.`,
+    "",
+    `**Scoped projects:** ${summary.scopedProjectCount}; invalid (environment/infrastructure): ${summary.invalidCount}.`,
+    "",
+    "### Environment eligibility",
+    "",
+    "| Environment state | Count |",
+    "|---|---:|",
+    ...Object.entries(summary.environmentStateCounts).map(
+      ([state, count]) => `| ${state} | ${count} |`,
+    ),
     "",
     "### Outcome classification",
     "",
@@ -162,11 +268,12 @@ function markdown(summary) {
     "",
     "### Provider conclusion",
     "",
-    "| Provider | Success | Failure | Import failed | Project errors | Finalization timeout | Indexing timeout | UI timeout | Not loaded |",
-    "|---|---:|---:|---:|---:|---:|---:|---:|---:|",
+    "| Provider | Eligible success | Failure | Environment ineligible | Infrastructure ineligible | Missing | Import failed | Project errors | Finalization timeout | Indexing timeout | UI timeout | Not loaded |",
+    "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ...summary.providers.map(
       (row) =>
-        `| ${row.provider} | ${row.success}/${row.total} | ${row.failure} | ` +
+        `| ${row.provider} | ${row.success}/${row.eligibleCount} | ${row.failure} | ` +
+        `${row.environmentIneligibleCount} | ${row.infrastructureIneligibleCount} | ${row.missingCount} | ` +
         `${row.importFailed} | ${row.projectErrors} | ` +
         `${row.finalizationTimeouts} | ${row.indexingTimeouts} | ` +
         `${row.uiTimeouts} | ${row.notLoaded} |`,
@@ -174,24 +281,26 @@ function markdown(summary) {
     "",
     "### OS conclusion",
     "",
-    "| OS | Success | Failure |",
-    "|---|---:|---:|",
+    "| OS | Eligible success | Failure | Environment ineligible | Infrastructure ineligible | Missing |",
+    "|---|---:|---:|---:|---:|---:|",
     ...summary.operatingSystems.map(
       (row) =>
-        `| ${row.operatingSystem} | ${row.success}/${row.total} | ${row.failure} |`,
+        `| ${row.operatingSystem} | ${row.success}/${row.eligibleCount} | ${row.failure} | ` +
+        `${row.environmentIneligibleCount} | ${row.infrastructureIneligibleCount} | ${row.missingCount} |`,
     ),
     "",
     "### Detailed results",
     "",
-    "| Project | Provider | OS | Verdict | Provider | Project | Semantic | Diagnostics | Phase | Reasons | Duration |",
-    "|---|---|---|---|---|---|---|---|---|---|---:|",
+    "| Project | Provider | OS | Verdict | Environment state | Eligibility | Provider | Project | Semantic | Diagnostics | Phase | Reasons | Duration |",
+    "|---|---|---|---|---|---|---|---|---|---|---|---|---:|",
     ...summary.results.map((row) => {
       const duration = row.totalDurationMs === null
         ? "-"
         : `${(row.totalDurationMs / 1000).toFixed(1)}s`;
       return (
         `| ${row.project} | ${row.provider} | ${row.operatingSystem} | ` +
-        `${row.verdict} | ${row.providerState} | ${row.projectHealth} | ` +
+        `${row.verdict} | ${row.environmentState} | ${row.eligibility} | ` +
+        `${row.providerState} | ${row.projectHealth} | ` +
         `${row.semanticState} | ${row.diagnosticState} | ` +
         `${row.failedPhase || "-"} | ${row.reasonCodes || "-"} | ` +
         `${duration} |`
@@ -212,6 +321,26 @@ export function summarizeResults({
   const actual = new Map();
   for (const resultFile of listResultFiles(resultsDirectory)) {
     const result = JSON.parse(fs.readFileSync(resultFile, "utf8"));
+    const evidencePath = path.join(path.dirname(resultFile), "normalized-evidence.json");
+    const capturedEvidence = result.normalizedEvidence ??
+      (fs.existsSync(evidencePath)
+        ? JSON.parse(fs.readFileSync(evidencePath, "utf8"))
+        : null);
+    const evidenceResult = {
+      ...result,
+      normalizedEvidence: capturedEvidence,
+    };
+    const environment = resultEnvironment(evidenceResult);
+    const judgment = resultEligibility(evidenceResult, environment.environmentEvidence) ?? {};
+    const verdict = judgment.verdict ?? result.verdict ??
+      (result.status === "success" ? "PASS" : "FAIL");
+    const ineligible = environment.evaluationEligible === false;
+    const diagnosticsCaptured = capturedEvidence?.diagnosticEvidence?.captured ??
+      result.diagnosticsCaptured ??
+      (result.diagnosticState === "not-captured" ? false : undefined);
+    const count = (value) => value === null ||
+      (ineligible && (value === undefined || diagnosticsCaptured === false))
+      ? null : Number(value ?? 0);
     const relative = path.relative(resultsDirectory, resultFile);
     const artifact = relative.split(path.sep)[0];
     const project = result.project;
@@ -221,11 +350,10 @@ export function summarizeResults({
       project,
       provider,
       operatingSystem,
-      status: result.status === "success" ? "success" : "failure",
-      verdict:
-        result.verdict ??
-        (result.status === "success" ? "PASS" : "FAIL"),
-      loadStatus: result.loadStatus ?? result.status ?? "unknown",
+      status: ineligible ? "blocked" : result.status === "success" ? "success" : "failure",
+      verdict: ineligible ? "NOT_EVALUATED" : verdict,
+      ...environment,
+      loadStatus: judgment.loadStatus ?? result.loadStatus ?? result.status ?? "unknown",
       providerImportStatus: result.providerImportStatus ?? "unknown",
       providerTerminalState: result.providerTerminalState ?? null,
       providerState:
@@ -239,16 +367,18 @@ export function summarizeResults({
       diagnosticState:
         result.diagnosticState ??
         (Number(result.errorCount ?? 0) > 0 ? "errors" : "unknown"),
-      failureCategory: result.failureCategory ?? "",
-      failedPhase: result.failedPhase ?? "",
-      reasonCodes: Array.isArray(result.reasonCodes)
-        ? result.reasonCodes.join(";")
-        : "",
-      ruleVersion: result.ruleVersion ?? "legacy",
-      errorCount: Number(result.errorCount ?? 0),
-      warningCount: Number(result.warningCount ?? 0),
+      failureCategory: judgment.failureCategory ?? result.failureCategory ?? "",
+      failedPhase: judgment.failedPhase ?? result.failedPhase ?? "",
+      reasonCodes: Array.isArray(judgment.reasonCodes ?? result.reasonCodes)
+        ? (judgment.reasonCodes ?? result.reasonCodes).join(";")
+        : result.reasonCodes ?? "",
+      ruleVersion: environment.environmentRequired
+        ? environment.environmentEvidence.ruleVersion
+        : result.ruleVersion ?? "legacy",
+      errorCount: count(result.errorCount),
+      warningCount: count(result.warningCount),
       totalDurationMs:
-        result.totalDurationMs === undefined
+        result.totalDurationMs === undefined || result.totalDurationMs === null
           ? null
           : Number(result.totalDurationMs),
       artifact,
@@ -266,6 +396,7 @@ export function summarizeResults({
       operatingSystem,
       status: "failure",
       verdict: "FAIL",
+      ...resultEnvironment(null),
       loadStatus: "missing-result",
       providerImportStatus: "unknown",
       providerTerminalState: null,
@@ -277,8 +408,8 @@ export function summarizeResults({
       failedPhase: "aggregate",
       reasonCodes: "missing-result-artifact",
       ruleVersion: "unknown",
-      errorCount: 0,
-      warningCount: 0,
+      errorCount: null,
+      warningCount: null,
       totalDurationMs: null,
       artifact: "",
       resultPath: "",
@@ -289,24 +420,38 @@ export function summarizeResults({
       .filter((row) => row.loadStatus !== "missing-result")
       .map((row) => row.ruleVersion),
   )];
-  if (ruleVersions.length > 1) {
+  if (ruleVersions.length > 1 && !ruleVersions.every(
+    (version) => [T1_RULE_VERSION, T1_ENVIRONMENT_RULE_VERSION].includes(version),
+  )) {
     throw new Error(
       `Aggregate input mixes incompatible rule versions: ${ruleVersions.join(", ")}`,
     );
   }
-  const successCount = results.filter((row) => row.verdict === "PASS").length;
+  const counts = outcomeCounts(results);
+  const successCount = counts.success;
   const missingCount = results.filter(
     (row) => row.loadStatus === "missing-result",
   ).length;
   const summary = {
-    schemaVersion: 2,
-    ruleVersion: ruleVersions[0] ?? "unknown",
+    schemaVersion: 3,
+    ruleVersion: ruleVersions.length > 1 ? "mixed" : ruleVersions[0] ?? "unknown",
+    ruleVersions,
     generatedAt: new Date().toISOString(),
     expectedCount: expected.length,
     resultCount: expected.length - missingCount,
     missingCount,
     successCount,
-    failureCount: expected.length - successCount,
+    failureCount: counts.failure,
+    eligibleCount: counts.eligibleCount,
+    eligibleFailureCount: counts.eligibleFailureCount,
+    environmentIneligibleCount: counts.environmentIneligibleCount,
+    infrastructureIneligibleCount: counts.infrastructureIneligibleCount,
+    invalidCount: counts.invalidCount,
+    successRate: counts.successRate,
+    scopedProjects: [...new Set(results.map((row) => row.project))].sort(),
+    scopedProjectCount: new Set(results.map((row) => row.project)).size,
+    environmentStateCounts: countBy(results, "environmentState"),
+    eligibilityCounts: countBy(results, "eligibility"),
     loadStatusCounts: countBy(results, "loadStatus"),
     failureCategoryCounts: countBy(
       results.filter((row) => row.verdict !== "PASS"),

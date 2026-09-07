@@ -1,0 +1,1225 @@
+{
+  "schemaVersion": 1,
+  "projects": {
+    "java-design-patterns": {
+      "commit": "22a34127d0b08449c24cf7e230c04a097deca2f3",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "21", "buildJavaMin": "21" },
+      "evidence": [
+        { "path": "pom.xml", "line": 387, "reason": "Parent compiler source and target are 21; abstract-document inherits this parent." }
+      ],
+      "blockedReasons": []
+    },
+    "spring-boot": {
+      "commit": "e3d4b1ceb6d8971936f484bae39c7d6659a81c7f",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "17", "buildJavaMin": "25", "toolchainJavaVersions": ["25"] },
+      "evidence": [
+        { "path": "buildSrc/src/main/java/org/springframework/boot/build/JavaConventions.java", "line": 136, "reason": "BUILD_JAVA_VERSION=25 is distinct from RUNTIME_JAVA_VERSION=17." },
+        { "path": "buildSrc/src/main/java/org/springframework/boot/build/JavaConventions.java", "line": 275, "reason": "Compilation rejects a compiler older than 25; provision that compiler, not only a Java 17 project target." },
+        { "path": "buildSrc/src/main/java/org/springframework/boot/build/toolchain/ToolchainPlugin.java", "line": 38, "reason": "Alternate test toolchains do not replace the baseline build compiler." }
+      ],
+      "blockedReasons": []
+    },
+    "elasticsearch": {
+      "commit": "3820daa1924b994bc7a7cf51bc62966ffb3e9431",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "21", "buildJavaMin": "21", "toolchainJavaVersions": ["21"] },
+      "evidence": [
+        { "path": "build-tools-internal/src/main/resources/minimumCompilerVersion", "line": 1, "reason": "The compiler baseline is 21." },
+        { "path": "build-tools-internal/src/main/resources/minimumRuntimeVersion", "line": 1, "reason": "The project runtime baseline is 21, not the bundled distribution JDK 26." },
+        { "path": "build-tools-internal/src/main/java/org/elasticsearch/gradle/internal/ElasticsearchJavaBasePlugin.java", "line": 90, "reason": "Default compilation selects the minimum-runtime Java toolchain explicitly." }
+      ],
+      "blockedReasons": []
+    },
+    "mall": {
+      "commit": "0504e86b1f1b6f1b8aa6a734d37a90fb67346be7",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": {},
+      "evidence": [
+        { "path": "pom.xml", "line": 12, "reason": "Root java.version/source/target are 17 and mall-admin inherits the reactor; resolve the pinned POM rather than requiring application databases." }
+      ],
+      "blockedReasons": []
+    },
+    "the-algorithms-java": {
+      "commit": "56e2699defe911cf72cd421a1dffc7eb5adae816",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": {},
+      "evidence": [
+        { "path": "pom.xml", "line": 69, "reason": "The single native Maven project explicitly compiles source/target/release 21; direct source detection needs no inherited supplement." }
+      ],
+      "blockedReasons": []
+    },
+    "rxjava": {
+      "commit": "4e481d505a54cabc0bb1a8e902051963e184c880",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "26", "toolchainJavaVersions": ["26"] },
+      "evidence": [
+        { "path": "build.gradle", "line": 59, "reason": "Default toolchain, sourceCompatibility and targetCompatibility are 26; JDK_EXPERIMENTAL is an optional override, not a reason to omit the default toolchain." }
+      ],
+      "blockedReasons": []
+    },
+    "guava": {
+      "commit": "40e7de083329969a54a0b8a84d01c6f0614447d2",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "8", "toolchainJavaVersions": ["26"] },
+      "evidence": [
+        { "path": "pom.xml", "line": 214, "reason": "Java 8 bytecode is separate from the default JDK 26 toolchain." },
+        { "path": "pom.xml", "line": 458, "reason": "Toolchain selection/download configuration requests Temurin 26; provide it explicitly rather than relying on a future download." },
+        { "path": "guava/pom.xml", "line": 55, "reason": "The selected module activates inherited toolchain plugins." }
+      ],
+      "blockedReasons": []
+    },
+    "okhttp": {
+      "commit": "c22a1d9f463ae3d0640db764d7361556d6981e9b",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "11", "toolchainJavaVersions": ["21"] },
+      "android": { "platforms": ["android-37"], "buildTools": [] },
+      "evidence": [
+        { "path": "module-tests/build.gradle.kts", "line": 59, "reason": "The actual probe module targets Java 11 with Java 21 tooling." },
+        { "path": "build-logic/src/main/kotlin/okhttp.jvm-conventions.gradle.kts", "line": 18, "reason": "Main JVM conventions choose Java 21 toolchains while producing Java 8 bytecode." },
+        { "path": "okhttp/build.gradle.kts", "line": 10, "reason": "Core unconditionally applies the Android multiplatform plugin." },
+        { "path": "okhttp/build.gradle.kts", "line": 36, "reason": "Core compileSdk is 37; androidBuild=false does not remove this Android target." }
+      ],
+      "blockedReasons": [],
+      "unresolvedHints": ["Resolve and record the Android plugin's effective default build-tools package; the source audit proves platform 37 but not an explicit buildToolsVersion."]
+    },
+    "retrofit": {
+      "commit": "dfa2e2d470ec05b5595eafc0ef4cb387550ad03d",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "8", "toolchainJavaVersions": ["8", "14", "16"] },
+      "android": { "platforms": ["android-36"], "buildTools": [] },
+      "evidence": [
+        { "path": "build.gradle", "line": 22, "reason": "Root compilation selects a Java 8 toolchain, independently of the Gradle-launch JDK." },
+        { "path": "retrofit/build.gradle", "line": 5, "reason": "Multi-release source sets request Azul Java 14 and 16 toolchains." },
+        { "path": "settings.gradle", "line": 17, "reason": "The Android test project is included unconditionally; Foojay is not a substitute for recording all known toolchains." },
+        { "path": "retrofit/android-test/build.gradle", "line": 1, "reason": "The included Android project declares compileSdk 36." }
+      ],
+      "blockedReasons": [
+        {
+          "code": "TOOLCHAIN_VENDOR_UNSUPPORTED",
+          "message": "Java 14 and 16 compiler toolchains explicitly require Azul. The current common-distribution toolchain contract does not establish a valid per-version vendor mapping; do not install arbitrary-vendor JDKs or assume all-Zulu is valid without audited requirements and explicit provisioner support.",
+          "evidence": [
+            { "path": "retrofit/build.gradle", "line": 5, "reason": "Pinned multi-release source sets request Azul Java 14 and 16; numeric toolchain majors alone do not satisfy these vendor constraints." }
+          ]
+        }
+      ],
+      "unresolvedHints": ["Resolve the Android plugin's effective default build-tools version rather than assuming a preinstalled SDK."]
+    },
+    "spark": {
+      "commit": "4e0b430619e67bf3880a9ecaed103df5eea0e531",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "17", "buildJavaMin": "17.0.11", "mavenMin": "3.9.16" },
+      "evidence": [
+        { "path": "pom.xml", "line": 124, "reason": "Root Java minimum is 17.0.11 and compilation releases Java 17." },
+        { "path": "pom.xml", "line": 177, "reason": "maven.version is 3.9.16." },
+        { "path": "pom.xml", "line": 2671, "reason": "The active enforcer requires the declared Maven version, so the old harness Maven 3.9.11 is insufficient." },
+        { "path": "common/config/pom.xml", "line": 22, "reason": "The selected Java probe belongs to the native mixed Scala/Java reactor." }
+      ],
+      "blockedReasons": []
+    },
+    "jadx": {
+      "commit": "e738a26571d02919f01df40de93bc9a44dee4e18",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "11", "buildJavaMin": "11" },
+      "evidence": [
+        { "path": "settings.gradle.kts", "line": 1, "reason": "The settings enforce at least Java 11; Gradle wrapper compatibility may impose a higher launch JDK." },
+        { "path": "buildSrc/src/main/kotlin/jadx-java.gradle.kts", "line": 44, "reason": "Java conventions target 11; optional checks and explicit alternate toolchain environment variables are not baseline SDK requirements." }
+      ],
+      "blockedReasons": []
+    },
+    "zxing": {
+      "commit": "19aa2d8254410e161f04dc3c928e68d5e90233c2",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "8", "mavenMin": "3.6.3" },
+      "evidence": [
+        { "path": "pom.xml", "line": 56, "reason": "Root declares Maven 3.6.3 minimum and Java 8 source/target." },
+        { "path": "pom.xml", "line": 679, "reason": "Legacy Android modules are gated by ANDROID_HOME and JDK below 9; they are not an unconditional native Java-import SDK prerequisite." }
+      ],
+      "blockedReasons": []
+    },
+    "jeecgboot": {
+      "commit": "c63277eaf14ef369655927ad9257545080e02744",
+      "scope": "java-subproject",
+      "buildRoot": "jeecg-boot",
+      "constraints": { "projectJavaMin": "17", "buildJavaMin": "17" },
+      "evidence": [
+        { "path": "jeecg-boot/pom.xml", "line": 23, "reason": "The native backend reactor and its Java 17 property are here, not at repository root or just the probe module." },
+        { "path": "jeecg-boot/pom.xml", "line": 592, "reason": "Compiler source/target inherit java.version." },
+        { "path": "jeecg-boot/jeecg-boot-base-core/pom.xml", "line": 4, "reason": "The probe inherits jeecg-boot-parent 3.9.3." }
+      ],
+      "blockedReasons": []
+    },
+    "arthas": {
+      "commit": "a5ecd7a84a93da8761b396fae2eee95301b3d6ff",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": {},
+      "evidence": [
+        { "path": "pom.xml", "line": 84, "reason": "The native Maven reactor has a Java 8 baseline; JDK-activated optional modules must be evaluated by the source planner." },
+        { "path": "math-game/pom.xml", "line": 4, "reason": "The actual Java probe inherits the reactor; native VM tooling and frontend packaging are not proven prerequisites for resolving it." }
+      ],
+      "blockedReasons": []
+    },
+    "leakcanary": {
+      "commit": "8a176f3eae0ad43de0b467acddd59a2e6321f20c",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "8", "buildJavaMin": "17" },
+      "android": { "platforms": ["android-36"], "buildTools": [] },
+      "evidence": [
+        { "path": "gradle/libs.versions.toml", "line": 20, "reason": "Catalog/conventions establish Java 8 targets, a JDK 17 build baseline, AGP 9.2.1 and compileSdk 36; wrapper compatibility remains separate." },
+        { "path": "leakcanary/leakcanary-gc/build.gradle.kts", "line": 1, "reason": "The Java probe module applies Kotlin JVM and requires the native mixed Java/Kotlin model." }
+      ],
+      "blockedReasons": [],
+      "unresolvedHints": ["Resolve and record AGP's default build-tools version; compileSdk 36 is required even though the chosen probe module itself is JVM-oriented."]
+    },
+    "dbeaver": {
+      "commit": "3b8aefc0a0ef5b0ee4d22cc02dbdf1a00f6e77bf",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "21" },
+      "evidence": [
+        { "path": "pom.xml", "line": 7, "reason": "Root requires com.dbeaver.common:com.dbeaver.common.main:2.8.0-SNAPSHOT at ../dbeaver-common/pom.xml; no immutable sibling-parent checkout is supplied." },
+        { "path": "plugins/org.jkiss.dbeaver.model/META-INF/MANIFEST.MF", "line": 1, "reason": "Actual product bundles require JavaSE-21, unlike the standalone Java 11 injector probe." }
+      ],
+      "blockedReasons": [
+        { "code": "UNPINNED_EXTERNAL_PARENT", "message": "Native Eclipse/Tycho model requires the missing sibling dbeaver-common snapshot parent and parent-supplied target platform. Do not replace it with the standalone injector POM or fetch an unpinned sibling revision." }
+      ]
+    },
+    "hutool": {
+      "commit": "8870454b2a0c29cc6ffd31dcf5667c8ceb2fc442",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": {},
+      "evidence": [
+        { "path": "pom.xml", "line": 41, "reason": "compile.version=8 controls inherited compiler source/target in the native reactor; no exact Java 8 toolchain is required by the inspected chain." }
+      ],
+      "blockedReasons": []
+    },
+    "spring-cloud-alibaba": {
+      "commit": "115d5901102009492e05d5ec18c3f79cad4077d0",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "17", "buildJavaMin": "21.0.8", "mavenMin": "3.9.1" },
+      "evidence": [
+        { "path": "pom.xml", "line": 91, "reason": "java.version=17 is the release target; compiler.jdk.version=[21.0.8,) is the compiler process baseline." },
+        { "path": "pom.xml", "line": 189, "reason": "Active enforcer requires the compiler JDK range and Maven at least 3.9.1." },
+        { "path": "pom.xml", "line": 267, "reason": "Error Prone and NullAway require the higher build JDK despite Java 17 release output." }
+      ],
+      "blockedReasons": []
+    },
+    "xxl-job": {
+      "commit": "e74c784f68f81fa89cb350913ef15794865d7b12",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": {},
+      "evidence": [
+        { "path": "pom.xml", "line": 225, "reason": "The native Maven root explicitly configures source/target 17; admin inherits it. Running a database or executor is not required for source import." }
+      ],
+      "blockedReasons": []
+    },
+    "nativescript": {
+      "commit": "b54537d8d9fa62432079e1ea04d076c10b999556",
+      "scope": "synthetic",
+      "buildRoot": ".",
+      "constraints": {},
+      "android": { "platforms": ["android-36"], "buildTools": ["36.0.0"] },
+      "evidence": [
+        { "path": "packages/ui-mobile-base/android/widgets/build.gradle", "line": 5, "reason": "The real Android project declares compileSdk 36, build-tools 36.0.0 and AndroidX dependencies, absent from the generated single-file Maven model." },
+        { "path": "packages/ui-mobile-base/android/widgets/src/main/java/org/nativescript/Process.java", "line": 1, "reason": "The copied probe depends on Android runtime APIs." }
+      ],
+      "blockedReasons": [
+        { "code": "SYNTHETIC_NATIVE_SCOPE", "message": "The existing single-file generated Maven workspace is not a native import. Restore and qualify packages/ui-mobile-base/android with its real dependencies before including this case in native results." }
+      ]
+    },
+    "ray": {
+      "commit": "d45607468b3f29c98073c2acd58dc928c6b9aadb",
+      "scope": "java-subproject",
+      "buildRoot": "java",
+      "constraints": { "projectJavaMin": "8" },
+      "evidence": [
+        { "path": "java/pom.xml", "line": 56, "reason": "The Java super-POM targets 8 but references child modules whose POMs are generated." },
+        { "path": ".bazelversion", "line": 1, "reason": "Native generation is pinned to Bazel 7.5.0." },
+        { "path": "java/BUILD.bazel", "line": 326, "reason": "Bazel packages generated child POMs and exposes the POM generation path; Maven alone cannot reconstruct the checked-in model." },
+        { "path": "java/BUILD.bazel", "line": 396, "reason": "Java protobuf generation has a separate extraction path." }
+      ],
+      "blockedReasons": [
+        { "code": "BAZEL_GENERATED_MAVEN_MODEL", "message": "Required child POMs/protobuf model inputs must be generated by a pinned audited Bazel bootstrap, which the general Java resolver does not implement. Do not manufacture replacement POMs." }
+      ]
+    },
+    "libgdx": {
+      "commit": "97f40861878058087be0685ca167ddfde132134b",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "8" },
+      "android": { "platforms": ["android-36"], "buildTools": [] },
+      "evidence": [
+        { "path": "gradle/dependencies.gradle", "line": 24, "reason": "Shared versions declare Java 8 and Android dependency versions; this is not an exact Java 8 toolchain request." },
+        { "path": "settings.gradle", "line": 18, "reason": "Android backend/test modules are included unconditionally." },
+        { "path": "backends/gdx-backend-android/build.gradle", "line": 17, "reason": "Included Android modules use compile/target SDK 36." }
+      ],
+      "blockedReasons": [],
+      "unresolvedHints": ["Resolve the Android plugin's default build-tools version. JNI/iOS packaging and native tests are not automatically required for the gdx Java probe."]
+    },
+    "sentinel": {
+      "commit": "a3f40ba8e900c8489bd520274739f17235a7721c",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "8", "buildJavaMin": "17" },
+      "evidence": [
+        { "path": "pom.xml", "line": 307, "reason": "Base bytecode release is 8, but default-compile explicitly uses release 17 before a separate base compilation excluding module-info.java." }
+      ],
+      "blockedReasons": []
+    },
+    "redisson": {
+      "commit": "a1b4ee1e274ee6d9527cbaadfb681ef03d2b7166",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "8", "buildJavaMin": "25", "runtimeJavaMin": "25" },
+      "evidence": [
+        { "path": "pom.xml", "line": 19, "reason": "Core main source/target/release are 8; Java 25 tests are skipped by default and are not the sole reason for the supplement." },
+        { "path": "redisson-micronaut/redisson-micronaut-50/pom.xml", "line": 25, "reason": "The included native reactor module loads Micronaut 5.1.1 annotation processors." },
+        { "path": "redisson-micronaut/redisson-micronaut-50/pom.xml", "line": 86, "reason": "Processor configuration makes the dependency bytecode level relevant during native import, even for the Java 8 core probe." },
+        { "url": "https://github.com/micronaut-projects/micronaut-core/blob/14880a3d21be68c1f037c991505e70b0cb49018f/buildSrc/src/main/groovy/io.micronaut.build.internal.convention-base.gradle#L39-L42", "reason": "Exact Micronaut 5.1.1 source sets Java 25 source/target; the audit also verified major 69 in the released core jar. Processor-loading JVMs must support 25." }
+      ],
+      "blockedReasons": []
+    },
+    "flink": {
+      "commit": "ffd8d8836df6da3c6ddd92a4ba2d291017588a11",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "17", "buildJavaMin": "17", "mavenExact": "3.8.6" },
+      "evidence": [
+        { "path": "pom.xml", "line": 134, "reason": "Default compilation has source 11, target 17 and JDK 17 minimum; do not confuse source level with runnable class target." },
+        { "path": "pom.xml", "line": 1870, "reason": "Active enforcer requires the exact Maven range [3.8.6], not a latest-version minimum." },
+        { "path": "pom.xml", "line": 1186, "reason": "JDK-activated 21/25 profiles change the effective compiler model; retain activation evidence instead of upgrading all JVM roles indiscriminately." }
+      ],
+      "blockedReasons": []
+    },
+    "jenkins": {
+      "commit": "a028c7a040823820e0ca7d58bd005fbd33fc0016",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "21", "buildJavaMin": "21", "mavenMin": "3.9.6" },
+      "evidence": [
+        { "path": "pom.xml", "line": 28, "reason": "The exact inherited parent is org.jenkins-ci:jenkins:2.1395.v8534005506ec." },
+        { "url": "https://github.com/jenkinsci/pom/blob/8534005506ecfd46ba35d54a6085f4d24c31f9c5/pom.xml#L67-L68", "reason": "Pinned parent declares Java 21." },
+        { "url": "https://github.com/jenkinsci/pom/blob/8534005506ecfd46ba35d54a6085f4d24c31f9c5/pom.xml#L721-L732", "reason": "Inherited enforcer requires Java at least 21 and Maven at least 3.9.6." }
+      ],
+      "blockedReasons": []
+    },
+    "appsmith": {
+      "commit": "03266b555b5451e91614840ec5b2577538bd8e6e",
+      "scope": "java-subproject",
+      "buildRoot": "app/server",
+      "constraints": { "projectJavaMin": "25", "buildJavaMin": "25" },
+      "evidence": [
+        { "path": "app/server/pom.xml", "line": 36, "reason": "The real backend parent sets Java 25; import the server reactor, not only reactive-caching or the frontend repository root." },
+        { "path": "app/server/reactive-caching/pom.xml", "line": 6, "reason": "The selected probe module inherits the server parent." }
+      ],
+      "blockedReasons": []
+    },
+    "mybatis-3": {
+      "commit": "69ee03634a27808553fede707dcc4ef70478e0be",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "11", "buildJavaMin": "21", "mavenMin": "3.9.16" },
+      "evidence": [
+        { "path": "pom.xml", "line": 23, "reason": "The project inherits org.mybatis:mybatis-parent:52." },
+        { "path": "pom.xml", "line": 66, "reason": "Main Java target is 11." },
+        { "url": "https://github.com/mybatis/parent/blob/02cc65cfbc0984b87e6113aab1ba81c9d1092a63/pom.xml#L263-L296", "reason": "Exact parent requires Maven at least 3.9.16, sets test Java 17, and allows build JDKs 21, 25, 26 or 27." },
+        { "url": "https://github.com/mybatis/parent/blob/02cc65cfbc0984b87e6113aab1ba81c9d1092a63/pom.xml#L620-L625", "reason": "Inherited enforcement distinguishes supported build JDKs from main/test release levels." },
+        { "path": ".mvn/wrapper/maven-wrapper.properties", "line": 1, "reason": "Upstream wrapper independently pins Maven 3.9.16." }
+      ],
+      "blockedReasons": []
+    },
+    "graal": {
+      "commit": "eb6826f79f9e78b5ac5c87c7f9b6ae6d0ee06488",
+      "scope": "java-subproject",
+      "buildRoot": "substratevm/src/native-image-module-tests",
+      "constraints": {},
+      "evidence": [
+        { "path": "substratevm/src/native-image-module-tests/hello.app/pom.xml", "line": 29, "reason": "The selected Java 9 Maven sample depends on sibling hello-lib:1.0-SNAPSHOT; it is not Graal's native project model." },
+        { "path": "compiler/mx.compiler/suite.py", "line": 208, "reason": "Actual Graal compiler projects use mx suites and JVMCI-specific JDK configurations." }
+      ],
+      "blockedReasons": [
+        { "code": "PROBE_NATIVE_MODEL_MISMATCH", "message": "A hello.app sample import cannot certify the native Graal mx/JVMCI workspace. No audited native Maven/Gradle root encompasses that model; do not label the whole project ENV_READY from this probe." }
+      ]
+    },
+    "hikaricp": {
+      "commit": "a4d93f4f85517f90e632b795486d7102e933d7ff",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": {},
+      "evidence": [
+        { "path": "pom.xml", "line": 318, "reason": "The native POM explicitly declares Java 11 source/target; ordinary dependency resolution, not a running database, is the import prerequisite." }
+      ],
+      "blockedReasons": []
+    },
+    "mindustry": {
+      "commit": "e8bf80a1d2d5e9cf339c2fbc2a82444bf6d779d7",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "17", "buildJavaMin": "17" },
+      "evidence": [
+        { "path": "build.gradle", "line": 3, "reason": "Native build requires Java at least 17." },
+        { "path": "build.gradle", "line": 216, "reason": "Native Java source/target are 17." },
+        { "path": "settings.gradle", "line": 1, "reason": "Android projects are explicitly skipped without ANDROID_HOME/sdk.dir; do not install an arbitrary Android SDK for this Java-only import scope." }
+      ],
+      "blockedReasons": []
+    },
+    "leetcode": {
+      "commit": "a5ad632a96e9e599012f1d9360fd462e277ea83c",
+      "scope": "synthetic",
+      "buildRoot": ".",
+      "constraints": {},
+      "evidence": [
+        { "path": "lcci/16.20.T9/Solution.java", "line": 1, "reason": "This is an online-judge snippet relying on judge-provided imports, not an upstream Maven application." }
+      ],
+      "blockedReasons": [
+        { "code": "SYNTHETIC_NATIVE_SCOPE", "message": "The generated single-file Maven model and ad-hoc imports do not represent a native project import; exclude from native comparison." }
+      ]
+    },
+    "analysis-ik": {
+      "commit": "6d2d70fd1a237cbf75cde254e8e4d6319b81266c",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "21", "buildJavaMin": "21" },
+      "evidence": [
+        { "path": "pom.xml", "line": 19, "reason": "Own source/target are Java 17; those values alone understate the dependency-aware project JDK requirement." },
+        { "path": "core/pom.xml", "line": 15, "reason": "The core probe inherits the root and has provided Lucene core/analysis-common 10.2.2 dependencies." },
+        { "url": "https://github.com/apache/lucene/blob/279eb7aaafe985e5d0552b7f2a10b63185a3f893/build.gradle#L80-L81", "reason": "Exact Lucene 10.2.2 source requires Java 21; the project/compiler must read Java 21 dependencies even while emitting Java 17 bytecode." },
+        { "url": "https://github.com/apache/lucene/blob/279eb7aaafe985e5d0552b7f2a10b63185a3f893/versions.toml#L23-L25", "reason": "Pinned dependency Java baseline supplements the root POM, without requiring a running Elasticsearch deployment." }
+      ],
+      "blockedReasons": []
+    },
+    "presto": {
+      "commit": "a3e42f6d1098cac3fe7c8feb50776c1599f5d6b5",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "8", "buildJavaMin": "17", "mavenMin": "3.3.9" },
+      "evidence": [
+        { "path": "pom.xml", "line": 5, "reason": "Root inherits com.facebook.airlift:airbase:108." },
+        { "path": "pom.xml", "line": 43, "reason": "air.java.version=17 is the build JVM baseline, not the inherited compiler release." },
+        { "url": "https://repo.maven.apache.org/maven2/com/facebook/airlift/airbase/108/airbase-108.pom", "line": 39, "reason": "Exact released parent defaults targetJdk to 1.8 and Maven minimum to 3.3.9; enforcement is at lines 292-297 and 335-340." }
+      ],
+      "blockedReasons": []
+    },
+    "jdk": {
+      "commit": "764e83c46c839164c137cd2f058c7cc2b6519dc6",
+      "scope": "synthetic",
+      "buildRoot": ".",
+      "constraints": {},
+      "evidence": [
+        { "path": "make/conf/version-numbers.conf", "line": 29, "reason": "Native OpenJDK 28 uses configure/make and boot JDK 26/27/28, not the generated single-file Maven model." },
+        { "path": "src/utils/LogCompilation/src/main/java/com/sun/hotspot/tools/compiler/Phase.java", "line": 25, "reason": "The copied utility probe depends on sibling BasicLogEvent; a fabricated standalone POM loses the native scope." }
+      ],
+      "blockedReasons": [
+        { "code": "SYNTHETIC_NATIVE_SCOPE", "message": "A copied Java utility is not a native OpenJDK import. Native configure/make/JDK generation is outside this general resolver; do not substitute a synthetic POM." }
+      ]
+    },
+    "bytecode-viewer": {
+      "commit": "31430e0033fa220db566b5ef461256727ff6793b",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": {},
+      "evidence": [
+        { "path": "pom.xml", "line": 429, "reason": "Native Maven compiler explicitly targets Java 8. Android-related dependency coordinates do not establish an Android SDK requirement." }
+      ],
+      "blockedReasons": []
+    },
+    "mockito": {
+      "commit": "5a676bcd9ef9a10db46e1dc34e190eb46faa2687",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "11", "toolchainJavaVersions": ["21"] },
+      "evidence": [
+        { "path": "buildSrc/src/main/kotlin/mockito.java-conventions.gradle.kts", "line": 6, "reason": "Native core source/target are 11." },
+        { "path": "mockito-integration-tests/java-21-tests/build.gradle.kts", "line": 17, "reason": "An included integration module explicitly selects a Java 21 compiler toolchain." },
+        { "path": "settings.gradle.kts", "line": 50, "reason": "Android modules are conditional on an SDK; native tests are not baseline Java-import services." }
+      ],
+      "blockedReasons": []
+    },
+    "vert-x": {
+      "commit": "d3c32fde9e7f65308bcede1feb5b0d84e7173ba2",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "11" },
+      "evidence": [
+        { "path": "pom.xml", "line": 16, "reason": "Root inherits exact vertx5-parent:15." },
+        { "url": "https://repo.maven.apache.org/maven2/io/vertx/vertx5-parent/15/vertx5-parent-15.pom", "line": 92, "reason": "Released parent baseline release is 11; compiler mapping is at lines 494-498." },
+        { "path": "pom.xml", "line": 76, "reason": "A Java 21+ JVM activates additional Java 21 compilation/tests; the explicit toolchain profile is optional, not a baseline exact-JDK request." }
+      ],
+      "blockedReasons": []
+    },
+    "logstash": {
+      "commit": "d01d882383853845c2e912f2c4549bfb7610a7e1",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "17", "buildJavaMin": "17" },
+      "evidence": [
+        { "path": "build.gradle", "line": 58, "reason": "Native source/target are Java 17." },
+        { "path": "logstash-core/build.gradle", "line": 220, "reason": "Compile classpath refers to vendor/jruby/lib/jruby.jar, not just a resolvable Maven coordinate." },
+        { "path": "rubyUtils.gradle", "line": 295, "reason": "downloadAndInstallJRuby downloads, verifies and installs the required local classpath artifact." },
+        { "path": "versions.yml", "line": 16, "reason": "Pinned JRuby version is 10.0.6.0." }
+      ],
+      "blockedReasons": [],
+      "unresolvedHints": ["Native import requires materialized vendor/jruby/lib/jruby.jar from the pinned downloadAndInstallJRuby bootstrap. Qualification must verify the jar's existence, content hash and native compile-classpath binding. Gradle help or Java-extension metadata alone does not establish readiness; this is an unresolved import artifact, not an intrinsic Java/build-stack incompatibility."]
+    },
+    "deeplearning4j": {
+      "commit": "4c22ac5fe4a8350d05d224e7f4499429f7f69c93",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "11", "buildJavaMin": "11" },
+      "evidence": [
+        { "path": "pom.xml", "line": 74, "reason": "Root compiler source/target are 11." },
+        { "path": "contrib/benchmarking_nd4j/pom.xml", "line": 13, "reason": "Probe belongs to the native benchmark model and depends on nd4j-native:1.0.0-SNAPSHOT." },
+        { "path": "nd4j/nd4j-backends/nd4j-api-parent/nd4j-api/pom.xml", "line": 210, "reason": "Native Java model includes generated protobuf sources; native library packaging must not be confused with ordinary import requirements." }
+      ],
+      "blockedReasons": []
+    },
+    "playframework": {
+      "commit": "30e67397f3b1f7a4a74ea62a98504ddefe99f0b0",
+      "scope": "synthetic",
+      "buildRoot": ".",
+      "constraints": {},
+      "evidence": [
+        { "path": "project/build.properties", "line": 3, "reason": "Native build is sbt 2.0.6, not Maven." },
+        { "path": "core/play/src/main/java/play/Logger.java", "line": 5, "reason": "The copied probe depends on Scala Play classes and SLF4J that the generated single-file POM does not model." }
+      ],
+      "blockedReasons": [
+        { "code": "SYNTHETIC_NATIVE_SCOPE", "message": "The generated Java-only Maven workspace substitutes for the native sbt Scala/Java graph; exclude until native dependency-aware import is supported." }
+      ]
+    },
+    "jib": {
+      "commit": "fb949e2676afbbd7dd7a1ef61e20251931325654",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "8", "buildJavaMin": "11", "gradleVersion": "6.9.2" },
+      "evidence": [
+        { "path": "build.gradle", "line": 92, "reason": "Native sources target Java 8; a modern language-server runtime must not be reused blindly as the old Gradle-launch JVM." },
+        { "path": "gradle/wrapper/gradle-wrapper.properties", "line": 1, "reason": "Pinned Gradle 6.9.2 uses Java 11 as the compatible selected build JVM. Preserve the old wrapper rather than upgrading it or launching it on Java 21." }
+      ],
+      "blockedReasons": []
+    },
+    "thingsboard": {
+      "commit": "45c30e83fa57356840d5f25d894002d94222d524",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "25", "buildJavaMin": "25" },
+      "evidence": [
+        { "path": "pom.xml", "line": 30, "reason": "Root Java version is 25." },
+        { "path": "pom.xml", "line": 674, "reason": "Compiler source/target/release are 25 and include annotation processing." },
+        { "path": "netty-mqtt/pom.xml", "line": 20, "reason": "Selected Java probe inherits the native root; running the application database is not an import prerequisite." }
+      ],
+      "blockedReasons": []
+    },
+    "spring-boot-admin": {
+      "commit": "68bf708913ae6775a04dbf4d59d73e2bff252ca6",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "17", "buildJavaMin": "17", "mavenMin": "3.9" },
+      "evidence": [
+        { "path": "pom.xml", "line": 35, "reason": "Native Maven parent targets Java 17." },
+        { "path": "pom.xml", "line": 248, "reason": "Parent requires Maven at least 3.9; frontend Node/npm packaging is separate from the inherited Java probe model." }
+      ],
+      "blockedReasons": []
+    },
+    "zookeeper": {
+      "commit": "7af463e0fd5097930f52864911b224d8b9e6a485",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "17", "buildJavaMin": "17", "mavenMin": "3.5.0" },
+      "evidence": [
+        { "path": "pom.xml", "line": 530, "reason": "Root configures Java release/minimum 17 and Maven minimum 3.5.0." },
+        { "path": "zookeeper-jute/pom.xml", "line": 74, "reason": "The actual Jute Java module uses registered JavaCC/code-generation phases; the optional C-client build is outside the Java-import scope." }
+      ],
+      "blockedReasons": []
+    },
+    "jedis": {
+      "commit": "dab029aa15dbf50944792bf17027882fce31c579",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": {},
+      "evidence": [
+        { "path": "pom.xml", "line": 354, "reason": "Native Maven source/target are 8. A running Redis service is a test/application concern, not a Java model prerequisite." }
+      ],
+      "blockedReasons": []
+    },
+    "ip2region": {
+      "commit": "800d19424237f4be5f2081e6cd9547d98f3871c3",
+      "scope": "java-subproject",
+      "buildRoot": "maker/java",
+      "constraints": {},
+      "evidence": [
+        { "path": "maker/java/pom.xml", "line": 43, "reason": "The selected maker is an actual native Maven Java 8 subproject; other-language bindings and generated IP databases are not required to identify its Java model." }
+      ],
+      "blockedReasons": []
+    },
+    "quarkus": {
+      "commit": "56d89d7ef8ff3388cd156da1433a58bb50e46e8d",
+      "scope": "native",
+      "buildRoot": ".",
+      "buildTool": "maven",
+      "constraints": { "projectJavaMin": "21", "buildJavaMin": "21", "mavenMin": "3.9.6" },
+      "evidence": [
+        { "path": "core/runtime/pom.xml", "line": 7, "reason": "The actual probe belongs to Maven core/runtime, not the unrelated devtools Gradle build selected by the old contract." },
+        { "path": "core/pom.xml", "line": 5, "reason": "Native inheritance proceeds through core and build-parent to root and independent-projects/parent." },
+        { "path": "independent-projects/parent/pom.xml", "line": 51, "reason": "Native Maven parent sets Java release/minimum 21." },
+        { "path": "independent-projects/parent/pom.xml", "line": 157, "reason": "Inherited enforcement requires Maven at least 3.9.6." },
+        { "path": ".mvn/wrapper/maven-wrapper.properties", "line": 1, "reason": "The real native Maven wrapper selects 3.9.16; devtools Gradle must not be used for the core probe." }
+      ],
+      "blockedReasons": []
+    },
+    "cas": {
+      "commit": "6ac39ee6eea9c450b9bff05c1e8b9a41f73c9b91",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "25", "buildJavaMin": "25", "toolchainJavaVersions": ["25"] },
+      "evidence": [
+        { "path": "gradle.properties", "line": 25, "reason": "The native source/target level is 25." },
+        { "path": "buildSrc/src/main/groovy/org.apereo.cas.base-conventions.gradle", "line": 60, "reason": "Base conventions request Java 25; non-CI vendor selection is JetBrains." },
+        { "path": "build.gradle", "line": 321, "reason": "verifyRequiredJavaVersion checks the current Gradle JVM against targetCompatibility when realized." }
+      ],
+      "blockedReasons": [],
+      "unresolvedHints": ["CI and non-CI vendor selection differ. Qualification must record the effective toolchain vendor and may not assume an arbitrary installed Java 25 satisfies a JetBrains-only request."]
+    },
+    "jsoup": {
+      "commit": "3c6e73f0fdede3679a05e41b4cb55a35b3c3ae94",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": {},
+      "evidence": [
+        { "path": "pom.xml", "line": 383, "reason": "Native multi-release Maven model has Java 8 baseline and a distinct Java 11+ profile; preserve profile activation instead of demanding both as exact toolchains." }
+      ],
+      "blockedReasons": []
+    },
+    "sa-token": {
+      "commit": "400fbe4f13c3c6448ae4219a4713a78615b767cc",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "8", "buildJavaMin": "17" },
+      "evidence": [
+        { "path": "pom.xml", "line": 99, "reason": "Root/core source and target are 8." },
+        { "path": "sa-token-plugin/sa-token-jackson3/pom.xml", "line": 39, "reason": "An active reactor module compiles for Java 17, raising the native reactor compiler requirement." },
+        { "path": "sa-token-plugin/sa-token-rest-client/pom.xml", "line": 40, "reason": "A second active module also targets Java 17." }
+      ],
+      "blockedReasons": []
+    },
+    "openrefine": {
+      "commit": "ff43aa1b531e25b81cc715df63dca3d75ae87a50",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "21", "buildJavaMin": "21" },
+      "evidence": [
+        { "path": "pom.xml", "line": 69, "reason": "java.minversion=21 and java.maxversion=26; compilation uses the minimum, not the historical Java 17 harness setting." },
+        { "path": "pom.xml", "line": 143, "reason": "Compiler release maps to java.minversion." },
+        { "path": "modules/core/pom.xml", "line": 11, "reason": "The selected module inherits the actual native root." }
+      ],
+      "blockedReasons": []
+    },
+    "tiled": {
+      "commit": "aa069419db754412a2b4d51d8ea03bb048499f0a",
+      "scope": "java-subproject",
+      "buildRoot": "util/java",
+      "constraints": { "projectJavaMin": "11", "buildJavaMin": "11", "mavenMin": "3.5.4" },
+      "evidence": [
+        { "path": "util/java/tmxviewer-java/pom.xml", "line": 14, "reason": "The actual probe is a small native Java viewer depending on sibling libtiled-java; scope is this Java subtree, not the C++ Tiled application." },
+        { "path": "util/java/pom.xml", "line": 80, "reason": "Native Java reactor parent sets Java 11 and encompasses the sibling library." },
+        { "path": "util/java/pom.xml", "line": 132, "reason": "Java parent requires Maven at least 3.5.4." },
+        { "path": "util/java/pom.xml", "line": 435, "reason": "Java 9+ profile uses release 11; native dependencies include the appropriate JAXB model." }
+      ],
+      "blockedReasons": []
+    },
+    "questdb": {
+      "commit": "e4be1c0230b1418a3609265ca118a2bbc71078ff",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "25", "buildJavaMin": "25", "mavenMin": "3.0.0" },
+      "evidence": [
+        { "path": "core/pom.xml", "line": 31, "reason": "Core javac.target is 25." },
+        { "path": "core/pom.xml", "line": 672, "reason": "java25+ profile activates only above JDK 24 and configures/enforces Java 25." },
+        { "path": "core/pom.xml", "line": 521, "reason": "Core requires Maven at least 3.0.0." },
+        { "path": "utils/pom.xml", "line": 38, "reason": "Other native reactor modules independently compile source/target 25, so the root cannot be qualified using only an older core probe configuration." }
+      ],
+      "blockedReasons": []
+    },
+    "mall-swarm": {
+      "commit": "04c442fe318356bae4445a109dde7af297ce1e84",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "17", "buildJavaMin": "17" },
+      "evidence": [
+        { "path": "pom.xml", "line": 24, "reason": "Root inherits Spring Boot starter parent 3.5.14 and sets java.version=17." },
+        { "url": "https://repo.maven.apache.org/maven2/org/springframework/boot/spring-boot-starter-parent/3.5.14/spring-boot-starter-parent-3.5.14.pom", "line": 4, "reason": "Exact released parent maps compiler release to java.version; the Java probe needs Maven dependency resolution, not deployed microservices." }
+      ],
+      "blockedReasons": []
+    },
+    "activiti": {
+      "commit": "41f8afbdd2143577c9705a96a451c9c9ec18530a",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "25", "buildJavaMin": "25", "mavenMin": "3.2" },
+      "evidence": [
+        { "path": "pom.xml", "line": 192, "reason": "Root Java version/source/target/release resolve to 25." },
+        { "path": "pom.xml", "line": 646, "reason": "Active enforcer requires the Java version and Maven at least 3.2." },
+        { "path": "activiti-core/activiti-engine/pom.xml", "line": 6, "reason": "Engine inherits the root through activiti-core-dependencies and activiti-core." }
+      ],
+      "blockedReasons": []
+    },
+    "jjwt": {
+      "commit": "401ba26ee72969c373d62a618b48444fc01e0e73",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "8", "buildJavaMin": "17" },
+      "evidence": [
+        { "path": "pom.xml", "line": 528, "reason": "Maven must run on JDK at least 17 while production compilation releases Java 8." },
+        { "path": "pom.xml", "line": 673, "reason": "Additional 8/11/21/25 toolchain profiles are explicit test-runtime profiles, not baseline compilation toolchains." }
+      ],
+      "blockedReasons": []
+    },
+    "dropwizard": {
+      "commit": "8288ae7c09b1b8de6df8f06354aa2263126fa68b",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "17", "buildJavaMin": "17" },
+      "evidence": [
+        { "path": "dropwizard-parent/pom.xml", "line": 20, "reason": "The in-repository parent sets Java release 17." },
+        { "path": "dropwizard-parent/pom.xml", "line": 114, "reason": "Compiler uses the repository's Error Prone/NullAway versions and .mvn/jvm.config exports; do not import the unrelated current error-prone project's Java 25 requirement." },
+        { "url": "https://github.com/google/error-prone/blob/52b61801ceacc31be26261a14e4eb95bee68cdd8/.github/workflows/ci.yml#L20-L25", "reason": "Exact Error Prone 2.42.0 dependency source CI supports the Java 17 baseline." }
+      ],
+      "blockedReasons": []
+    },
+    "grasscutter": {
+      "commit": "f373827a83d3e688fd3c6afb1e1c3759ca1d61c9",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "17", "buildJavaMin": "17", "gradleVersion": "7.4.2" },
+      "evidence": [
+        { "path": "build.gradle", "line": 54, "reason": "Native source/target are 17." },
+        { "path": "gradle/wrapper/gradle-wrapper.properties", "line": 1, "reason": "Preserve wrapper 7.4.2 and its Java 17-compatible launch JVM; a newer language-server JVM does not justify upgrading either." },
+        { "path": "build.gradle", "line": 261, "reason": "The native model registers generated protobuf sources, many already tracked, rather than requiring a substitute project." }
+      ],
+      "blockedReasons": []
+    },
+    "feign": {
+      "commit": "a06b1a0b7f0cde00e170bc248314f921ccfbae38",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "8", "toolchainJavaVersions": ["8", "11", "17", "25"] },
+      "evidence": [
+        { "path": "pom.xml", "line": 160, "reason": "main.java.version defaults to 1.8 while latest.java.version is 25." },
+        { "path": "pom.xml", "line": 685, "reason": "Test compilation source/target use Java 25 rather than the main Java 8 bytecode level." },
+        { "path": "pom.xml", "line": 1196, "reason": "Unless toolchain.skip is explicitly supplied, the active profile selects the main JDK and later selects JDK 25 at generate-test-sources." },
+        { "path": "java11/pom.xml", "line": 31, "reason": "Included java11 module overrides its main toolchain level to 11." },
+        { "path": "jackson3/pom.xml", "line": 33, "reason": "The pinned included Jackson 3 module overrides main.java.version to 17, inheriting the same active main-toolchain selection." }
+      ],
+      "blockedReasons": []
+    },
+    "hsweb-framework": {
+      "commit": "2d925fa2d79d1f05075b71e12d0e9ee553a653bf",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "17", "buildJavaMin": "17" },
+      "evidence": [
+        { "path": "pom.xml", "line": 79, "reason": "java.version/java.module.version are 17." },
+        { "path": "pom.xml", "line": 255, "reason": "Compiler project.build.jdk maps to java.version; this indirection belongs to the root inherited by the core probe." }
+      ],
+      "blockedReasons": []
+    },
+    "the-complete-faang-preparation": {
+      "commit": "685cf8a9dde63d6055890d04a330e6f8fe7cd859",
+      "scope": "synthetic",
+      "buildRoot": ".",
+      "constraints": {},
+      "android": { "platforms": ["android-33"], "buildTools": [] },
+      "evidence": [
+        { "path": "4]. Projects/Mobile Development/Android Application - Java/Weather Application/app/build.gradle", "line": 5, "reason": "The real Android app declares compileSdk 33, Java 8 targets, AndroidX and generated view binding." },
+        { "path": "4]. Projects/Mobile Development/Android Application - Java/Weather Application/app/src/main/java/com/aniketjain/weatherapp/HomeActivity.java", "line": 3, "reason": "The selected source imports Android, sibling application classes and generated ActivityHomeBinding, missing from the single-file Maven replacement." }
+      ],
+      "blockedReasons": [
+        { "code": "SYNTHETIC_NATIVE_SCOPE", "message": "The generated single-file workspace is not the native AGP 7.4.2/Gradle 7.5 application. Restore and qualify the actual Android root/dependencies before native comparison." }
+      ]
+    },
+    "metrics": {
+      "commit": "2f4a844a33f6190a6177d82a68aca496ef3159d7",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "8", "buildJavaMin": "17" },
+      "evidence": [
+        { "path": "pom.xml", "line": 150, "reason": "Root baseline release is 8; native reactor includes higher-level modules." },
+        { "path": "metrics-jetty12/pom.xml", "line": 20, "reason": "Jetty 12 module explicitly requires Java release 17." },
+        { "path": "metrics-jackson3/pom.xml", "line": 19, "reason": "Jackson 3 module independently requires Java release 17." }
+      ],
+      "blockedReasons": []
+    },
+    "cryptomator": {
+      "commit": "7af6c79b806a5c4550a94748ac99ac6f47f0a9db",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "26", "buildJavaMin": "26" },
+      "evidence": [
+        { "path": "pom.xml", "line": 29, "reason": "project.jdk.version is 26; the old Java 21/25 settings do not meet this pinned source requirement." },
+        { "path": "pom.xml", "line": 325, "reason": "Compiler release follows project.jdk.version and configures Dagger annotation processing." }
+      ],
+      "blockedReasons": []
+    },
+    "ultimaterecyclerview": {
+      "commit": "7c4a0c7fb22ff6b85948cec1da39c0ac0095d1ea",
+      "scope": "java-subproject",
+      "buildRoot": "UltimateRecyclerView",
+      "constraints": { "projectJavaMin": "17", "buildJavaMin": "17", "gradleVersion": "6.5.1" },
+      "android": { "platforms": ["android-34"], "buildTools": [] },
+      "evidence": [
+        { "path": "UltimateRecyclerView/build.gradle", "line": 3, "reason": "Native build selects AGP 8.2.2 and Kotlin 1.9.22." },
+        { "path": "UltimateRecyclerView/ultimaterecyclerview/build.gradle", "line": 22, "reason": "Native Java source/target are 17." },
+        { "path": "UltimateRecyclerView/gradle.properties", "line": 1, "reason": "Native compile/target SDK is 34." },
+        { "path": "UltimateRecyclerView/gradle/wrapper/gradle-wrapper.properties", "line": 1, "reason": "Pinned wrapper remains Gradle 6.5.1, incompatible with AGP 8.2.2." },
+        { "path": "UltimateRecyclerView/ultimaterecyclerview/android-release-aar.gradle", "line": 1, "reason": "Native library also applies the obsolete maven plugin, so silently upgrading the wrapper is not a safe fix." }
+      ],
+      "blockedReasons": [
+        { "code": "INCOMPATIBLE_PINNED_BUILD_STACK", "message": "Pinned AGP 8.2.2/Java 17 and Gradle 6.5.1 cannot form a supported native import stack. Do not patch sources, downgrade AGP, or silently upgrade Gradle to manufacture ENV_READY." }
+      ]
+    },
+    "checkstyle": {
+      "commit": "f1cdd26f76d7b57a9777b011e9cc26a11305bc34",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "21", "buildJavaMin": "21", "mavenMin": "3.6.3" },
+      "evidence": [
+        { "path": "pom.xml", "line": 223, "reason": "java.version is 21 and compiler release follows that property." },
+        { "path": "pom.xml", "line": 1626, "reason": "Active enforcer requires Java 21 and Maven at least 3.6.3." }
+      ],
+      "blockedReasons": []
+    },
+    "swagger-core": {
+      "commit": "9aaee385efbe3569f21523a0a75a92badb2d4576",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": {},
+      "evidence": [
+        { "path": "pom.xml", "line": 628, "reason": "Native baseline release is 8." },
+        { "path": "pom.xml", "line": 385, "reason": "Java 17+ profile conditionally includes Java 17 support; do not mistake optional profile targets for unconditional exact toolchains." }
+      ],
+      "blockedReasons": []
+    },
+    "spring-security": {
+      "commit": "b622028f846f6f54197031d6fc6cf5a1cd9230e1",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "17", "toolchainJavaVersions": ["25"] },
+      "evidence": [
+        { "path": "buildSrc/src/main/groovy/java-toolchain.gradle", "line": 4, "reason": "Native convention chooses compiler toolchain 25 while production Java/Kotlin release is 17; compiler choice does not make a Gradle-launch or language-server JVM 21 illegal." },
+        { "path": "buildSrc/src/main/groovy/io/spring/gradle/convention/SpringModulePlugin.groovy", "line": 32, "reason": "Spring modules apply the Java toolchain convention." },
+        { "path": "config/spring-security-config.gradle", "line": 4, "reason": "Config applies the test-compile-target-jdk25 convention." },
+        { "path": "buildSrc/src/main/groovy/test-compile-target-jdk25.gradle", "line": 4, "reason": "Test compilation explicitly releases Java 25, so provide the toolchain now rather than delegating unknown provisioning to Foojay." }
+      ],
+      "blockedReasons": []
+    },
+    "semgrep": {
+      "commit": "808ee51cda4f91d118fab80a411522e2cbbdc2fe",
+      "scope": "synthetic",
+      "buildRoot": ".",
+      "constraints": {},
+      "evidence": [
+        { "path": "cli/tests/default/e2e/targets/dependency_aware/gradle_multi_project_no_lockfile/lib/build.gradle.kts", "line": 1, "reason": "The upstream probe is a dependency-aware Gradle fixture declaring Guava and JUnit, not Semgrep's production Java application." },
+        { "path": "cli/tests/default/e2e/targets/dependency_aware/gradle_multi_project_no_lockfile/settings.gradle.kts", "line": 1, "reason": "Native fixture includes app and lib; copying CustomLib into a generated Maven POM changes scope." }
+      ],
+      "blockedReasons": [
+        { "code": "SYNTHETIC_NATIVE_SCOPE", "message": "A copied fixture class with a generated Maven POM cannot count as a native Semgrep import; keep this result separate." }
+      ]
+    },
+    "flyway": {
+      "commit": "55bc98edf95a54ff419e57523e00561642103030",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": {},
+      "evidence": [
+        { "path": "pom.xml", "line": 960, "reason": "Native default compiler release is 17; source detection should retain this ordinary Maven reactor." },
+        { "path": "pom.xml", "line": 1209, "reason": "Docker shading and delombok are explicitly selected profile concerns, not mandatory import services." }
+      ],
+      "blockedReasons": []
+    },
+    "cachecloud": {
+      "commit": "e984733b8d2cdedf51e4f84e8394b785c6df2c2f",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": {},
+      "evidence": [
+        { "path": "pom.xml", "line": 27, "reason": "Native source/target are 1.8; this is not proof of an exact Java 8-only compiler." },
+        { "path": "cachecloud-web/pom.xml", "line": 152, "reason": "Selected web module supplies Lombok 1.18.30; compatibility must be qualified against the selected compiler, not inferred from the old manifest." }
+      ],
+      "blockedReasons": []
+    },
+    "storm": {
+      "commit": "d6d15d0845c631d97edd9251d083ff61d31373be",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "25", "buildJavaMin": "25", "mavenMin": "3.5" },
+      "evidence": [
+        { "path": "pom.xml", "line": 21, "reason": "Root inherits exact org.apache:apache:39." },
+        { "path": "pom.xml", "line": 71, "reason": "Root javaVersion is 25." },
+        { "path": "pom.xml", "line": 1313, "reason": "Native build requires Maven at least 3.5." },
+        { "url": "https://repo.maven.apache.org/maven2/org/apache/apache/39/apache-39.pom", "line": 573, "reason": "Exact parent maps javaVersion into compiler release on modern JDKs, establishing the inherited Java 25 requirement." }
+      ],
+      "blockedReasons": []
+    },
+    "supertokens-core": {
+      "commit": "0c1739bf43a49d0c4a4892ca3f49cd3303ad28ad",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "21", "toolchainJavaVersions": ["21"], "gradleVersion": "8.13" },
+      "evidence": [
+        { "path": "build.gradle", "line": 9, "reason": "Native build selects Java 21 and freefair AspectJ 8.13 with a comment matching its Gradle version." },
+        { "path": "build.gradle", "line": 118, "reason": "Compile-only dependency on :supertokens-plugin-interface requires the existing audited companion-checkout setup to survive." },
+        { "url": "https://github.com/supertokens/supertokens-plugin-interface/blob/a1ae34c850e0af948c019f33efa14856ecbf66c6/build.gradle#L1-L17", "reason": "The existing companion recipe is pinned to this dependency source; preserve it rather than blocking solely because an old worktree lost preparation." }
+      ],
+      "blockedReasons": []
+    },
+    "jmeter": {
+      "commit": "3d3ace06c03634e65a7f0f56a0e5334fb5606e90",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "17", "buildJavaMin": "17", "toolchainJavaVersions": ["21"] },
+      "evidence": [
+        { "path": "settings.gradle.kts", "line": 53, "reason": "Settings require the Gradle-launch JVM to be at least 17." },
+        { "path": "build-logic/build-parameters/build.gradle.kts", "line": 32, "reason": "Default build toolchain is 21 while the production target is 17." },
+        { "path": "build-logic-commons/gradle-plugin/build.gradle.kts", "line": 34, "reason": "Included build-logic chooses its toolchain according to launch JVM; provision default 21 explicitly instead of relying on Foojay." }
+      ],
+      "blockedReasons": []
+    },
+    "aeron": {
+      "commit": "ae92458042ec82b0f510a13736b18fb59ae75db9",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "17" },
+      "evidence": [
+        { "path": "build.gradle", "line": 26, "reason": "BUILD_JAVA_VERSION or the current JVM determines the compiler toolchain dynamically; do not invent an exact fixed major from the old manifest." },
+        { "path": "build.gradle", "line": 193, "reason": "Main Java source/--release remain 17." },
+        { "path": "gradle.properties", "line": 1, "reason": "Automatic discovery/download are disabled and BUILD_JAVA_HOME is the named toolchain environment source." }
+      ],
+      "blockedReasons": [],
+      "unresolvedHints": ["Bind BUILD_JAVA_VERSION and BUILD_JAVA_HOME consistently to the selected build JDK and record that compiler; verify SBE-generated source roots during native import."]
+    },
+    "flutter-examples": {
+      "commit": "9d67d31c72ce29fdef589a093ead99de9f38baf5",
+      "scope": "java-subproject",
+      "buildRoot": "push_notifications/android",
+      "constraints": { "projectJavaMin": "17", "buildJavaMin": "17" },
+      "evidence": [
+        { "path": "push_notifications/android/settings.gradle.kts", "line": 1, "reason": "Settings immediately require local.properties flutter.sdk and include Flutter's Gradle build." },
+        { "path": "push_notifications/android/app/build.gradle.kts", "line": 1, "reason": "Java/Kotlin target is 17, but Android compileSdk and NDK versions derive from the unspecified Flutter SDK." },
+        { "path": "push_notifications/pubspec.yaml", "line": 20, "reason": "Dart >=3.0.0 <4.0.0 is not an immutable Flutter SDK pin." }
+      ],
+      "blockedReasons": [
+        { "code": "UNPINNED_FLUTTER_SDK", "message": "A fixed Flutter SDK is missing, so settings and inherited Android SDK/NDK versions cannot be resolved reproducibly. Do not install latest Flutter or guess numeric SDK requirements." }
+      ],
+      "unresolvedHints": ["Require an audited immutable Flutter SDK and derive its Android platform/build-tools/NDK requirements before qualification."]
+    },
+    "testcontainers-java": {
+      "commit": "3a621f5cc964668fe0bdfda3fff33d23b23c25c6",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "8", "toolchainJavaVersions": ["17"] },
+      "evidence": [
+        { "path": "build.gradle", "line": 29, "reason": "Root requests an exact Java 17 compiler while production bytecode releases Java 8." },
+        { "path": "core/build.gradle", "line": 137, "reason": "Core includes a Java 17 compilation task." },
+        { "path": "settings.gradle", "line": 7, "reason": "Foojay provisioning does not remove the requirement to explicitly provide the known compiler. Docker-backed tests are not basic Java-import prerequisites." }
+      ],
+      "blockedReasons": []
+    },
+    "paper": {
+      "commit": "c9e894d3cc03f21f80de4f4061a795e11941e89a",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "25", "toolchainJavaVersions": ["25"] },
+      "evidence": [
+        { "path": "build.gradle.kts", "line": 6, "reason": "Root subprojects require Java 25 toolchains and use paperweight 2.0.0-beta.21." },
+        { "path": "settings.gradle.kts", "line": 8, "reason": "Foojay is configured; provide the known JDK 25 rather than treating future auto-download as an environment qualification." },
+        { "path": "paper-api/build.gradle.kts", "line": 111, "reason": "The actual API source model registers generated Java." }
+      ],
+      "blockedReasons": []
+    },
+    "error-prone": {
+      "commit": "b41e2ba8565492799bb1aeb3615f0711b2b619df",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "21", "toolchainJavaVersions": ["25"], "runtimeJavaMin": "25", "mavenMin": "3.0.5" },
+      "evidence": [
+        { "path": "pom.xml", "line": 129, "reason": "Parent requires Maven at least 3.0.5." },
+        { "path": "pom.xml", "line": 203, "reason": "Project compiler source/target are 21, not 25." },
+        { "path": "pom.xml", "line": 300, "reason": "Parent binds maven-toolchains-plugin selection to JDK 25; javac-internal tooling/runtime used for this processor project must match 25." },
+        { "path": ".github/workflows/ci.yml", "line": 54, "reason": "Pinned CI separately installs Java 21 and Java 25, corroborating distinct project level and compiler/runtime requirements." }
+      ],
+      "blockedReasons": []
+    },
+    "javacv": {
+      "commit": "d6b38e57e0a767cb9ab0448f102b4e6396275d2e",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": {},
+      "evidence": [
+        { "path": "pom.xml", "line": 188, "reason": "Native Maven project targets Java 8 and has JDK-activated dependency profiles." },
+        { "path": "README.md", "line": 318, "reason": "Published JavaCPP/native artifacts can satisfy dependencies; building C++ native libraries locally is not automatically necessary for Java import." }
+      ],
+      "blockedReasons": []
+    },
+    "smarttube": {
+      "commit": "5264d321f927f6671259063231e3e9c26e347da0",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "8", "buildJavaMin": "17" },
+      "android": { "platforms": ["android-34"], "buildTools": ["30.0.3"] },
+      "evidence": [
+        { "path": "settings.gradle", "line": 6, "reason": "Native settings immediately read SharedModules and MediaServiceCore submodule scripts; preserve the existing pinned checkout preparation." },
+        { "path": "build.gradle", "line": 12, "reason": "Native build uses AGP 7.4.2 and Java 8 targets; use the compatible Java 17 build selection rather than the language-server JVM." },
+        { "url": "https://github.com/yuliskov/SharedModules/blob/183daf5b6e7ecdfca36d9476d2275449434077af/constants.gradle#L22-L30", "reason": "Exact pinned submodule requires compileSdk 34 and build-tools 30.0.3; SDK installation must be explicit and evidenced." }
+      ],
+      "blockedReasons": []
+    },
+    "rest-assured": {
+      "commit": "75ef4d541ab126fa0cfb05fdb672bfdf5b8efb20",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "17", "buildJavaMin": "17" },
+      "evidence": [
+        { "path": "pom.xml", "line": 53, "reason": "Root source/target are 17 with pinned Groovy/Kotlin/Scala tooling." },
+        { "path": "rest-assured/pom.xml", "line": 22, "reason": "The selected native module inherits the root and applies GMavenPlus; retain the mixed-language source model." }
+      ],
+      "blockedReasons": []
+    },
+    "h2o-3": {
+      "commit": "396510894be1568ff8940b377f2fbb89027ca8d3",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "8" },
+      "evidence": [
+        { "path": "gradle/java.gradle", "line": 1, "reason": "Root Java convention targets 8; resolve the checked-in old wrapper's compatible launch JVM separately from the modern language-server runtime." },
+        { "path": "gradle/profiles.gradle", "line": 112, "reason": "The Java development profile scopes tasks; full R/Python/Node distribution tooling is not an automatic prerequisite for the selected buildSrc Java probe." }
+      ],
+      "blockedReasons": []
+    },
+    "jsonschema2pojo": {
+      "commit": "1c6b7664e453c62265c5e60a630f52f1fd47452a",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "17", "buildJavaMin": "17", "mavenMin": "3.9.9" },
+      "evidence": [
+        { "path": "pom.xml", "line": 52, "reason": "Root java.version is 17." },
+        { "path": "pom.xml", "line": 222, "reason": "Active enforcer requires Java at least 17 and Maven at least 3.9.9." },
+        { "path": "jsonschema2pojo-core/pom.xml", "line": 5, "reason": "Selected core inherits the Maven root; Gradle-plugin dependency modules do not change the native root build tool." }
+      ],
+      "blockedReasons": []
+    },
+    "zeppelin": {
+      "commit": "14cdf8437224adff08864de05b810f7149a82119",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "11", "buildJavaMin": "11", "mavenMin": "3.6.3" },
+      "evidence": [
+        { "path": "pom.xml", "line": 96, "reason": "Root native compiler targets Java 11 and Scala 2.12.20." },
+        { "path": "java/pom.xml", "line": 23, "reason": "Probe inherits zeppelin-interpreter-parent and root Apache parent 33." },
+        { "url": "https://repo.maven.apache.org/maven2/org/apache/apache/33/apache-33.pom", "line": 98, "reason": "Exact released parent requires Maven at least 3.6.3. Frontend-managed Node/npm are not automatically Java-import services." }
+      ],
+      "blockedReasons": []
+    },
+    "beam": {
+      "commit": "a01a5cf6ef433ad9cfd0ddd69f87420c49763a11",
+      "scope": "java-subproject",
+      "buildRoot": "plugins/beam-code-completion-plugin",
+      "constraints": { "projectJavaMin": "11", "buildJavaMin": "11", "gradleVersion": "7.5.1" },
+      "evidence": [
+        { "path": "plugins/beam-code-completion-plugin/build.gradle.kts", "line": 20, "reason": "The actual probe belongs to a separate native IntelliJ-plugin build using IntelliJ Gradle plugin 1.13.3, not Beam's root SDK reactor." },
+        { "path": "plugins/beam-code-completion-plugin/build.gradle.kts", "line": 45, "reason": "This native Java subproject targets Java 11." },
+        { "path": "plugins/beam-code-completion-plugin/gradle/wrapper/gradle-wrapper.properties", "line": 18, "reason": "Its own wrapper pins Gradle 7.5.1; root Gradle 8.14.3 must not replace the selected subproject launcher." }
+      ],
+      "blockedReasons": []
+    },
+    "javalin": {
+      "commit": "cdfa0f7249f8c8ffca2b42a5969c3e45369d2c1c",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "17", "buildJavaMin": "17" },
+      "evidence": [
+        { "path": "pom.xml", "line": 58, "reason": "Native Java release/Kotlin JVM target are 17." },
+        { "path": "pom.xml", "line": 548, "reason": "Exact Java 17 enforcer belongs to the publishing profile; it is not a universal prohibition against Java 21 native import." }
+      ],
+      "blockedReasons": []
+    },
+    "curlconverter": {
+      "commit": "06636420d2af2b28f78203dd7915ce0ba8fcdbba",
+      "scope": "synthetic",
+      "buildRoot": ".",
+      "constraints": {},
+      "evidence": [
+        { "path": "package.json", "line": 59, "reason": "Native application is Node/TypeScript with npm-managed tree-sitter, not Maven." },
+        { "path": "test/fixtures/java-jsoup/head.java", "line": 1, "reason": "The copied Java probe is a jsoup-dependent output fixture, not the native application model." }
+      ],
+      "blockedReasons": [
+        { "code": "SYNTHETIC_NATIVE_SCOPE", "message": "Generated single-file Maven import of an output fixture cannot qualify the native curlconverter repository; report separately." }
+      ]
+    },
+    "graphql-java": {
+      "commit": "caf4d7957470d49d5ea4295328da499d005eba79",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "11", "buildJavaMin": "25", "toolchainJavaVersions": ["25"] },
+      "evidence": [
+        { "path": "build.gradle", "line": 16, "reason": "Root explicitly builds with JDK 25 while production Java and Kotlin tests target Java 11; ANTLR/Groovy/Kotlin/Error Prone remain part of the native model." },
+        { "path": "settings.gradle", "line": 15, "reason": "Foojay is enabled; explicitly provision the known Java 25 compiler rather than assuming auto-download has already succeeded." }
+      ],
+      "blockedReasons": []
+    },
+    "trino": {
+      "commit": "a94db3f937c93293ca81f1a4654b5a7a47e12165",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "25", "buildJavaMin": "25.0.1", "mavenMin": "3.9.8" },
+      "evidence": [
+        { "path": "pom.xml", "line": 149, "reason": "Root overrides inherited build Java minimum to 25.0.1 and compilation target to 25." },
+        { "url": "https://repo.maven.apache.org/maven2/io/airlift/airbase/402/airbase-402.pom", "line": 151, "reason": "Exact Airbase 402 parent defines Maven minimum 3.9.8; enforcement of these properties is at lines 800-805 and 939-943." },
+        { "path": "README.md", "line": 74, "reason": "Native IDE guidance explicitly requires SDK/language level 25. Full deployment Docker and frontend Rosetta instructions are not unconditional Java-import prerequisites." }
+      ],
+      "blockedReasons": []
+    },
+    "minecraftforge": {
+      "commit": "f0f144156b5c8d7ccbe358772e9e33b57d849d5e",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "25", "toolchainJavaVersions": ["25"] },
+      "evidence": [
+        { "path": "minecraft.versions.toml", "line": 1, "reason": "Minecraft version catalog declares Java 25." },
+        { "path": "settings.gradle", "line": 44, "reason": "Settings propagate the catalog Java version to conventions." },
+        { "path": "build.gradle", "line": 23, "reason": "Root assigns the compiler toolchain from that version; Foojay is not evidence that it is installed." },
+        { "path": "build.gradle", "line": 52, "reason": "Native ForgeDev/MCP model downloads/transforms/patches Minecraft sources." }
+      ],
+      "blockedReasons": []
+    },
+    "aws-doc-sdk-examples": {
+      "commit": "e949b8a5c2a74d0b4badd3b19c88316e56afabc3",
+      "scope": "synthetic",
+      "buildRoot": ".",
+      "constraints": {},
+      "evidence": [
+        { "path": "javav2/usecases/create_workflow_redshift/pom.xml", "line": 10, "reason": "The actual example already has a Java 17 Maven model declaring AWS/Lambda/mail dependencies; the existing generated single-file root POM discards it." },
+        { "path": "javav2/usecases/create_workflow_redshift/src/main/java/redshift/Handler.java", "line": 4, "reason": "The selected probe imports Lambda APIs and Gson supplied by the native example model." }
+      ],
+      "blockedReasons": [
+        { "code": "SYNTHETIC_NATIVE_SCOPE", "message": "Existing generated single-file Maven workspace is excluded from native comparison. An explicit future scope correction may restore javav2/usecases/create_workflow_redshift without a fake POM; AWS deployment/accounts are not required merely for import." }
+      ]
+    },
+    "kryo": {
+      "commit": "05045e707a74366dc9675484585cea4d7cdee158",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "8", "mavenMin": "3.6.3" },
+      "evidence": [
+        { "path": "pom.xml", "line": 43, "reason": "Native baseline Java target is 8." },
+        { "path": "pom.xml", "line": 258, "reason": "Root requires Maven at least 3.6.3." },
+        { "path": "pom.xml", "line": 467, "reason": "JDK-activated test profiles can raise test language level; release-publishing Java 11 enforcement is not a universal native import requirement." }
+      ],
+      "blockedReasons": []
+    },
+    "micronaut-core": {
+      "commit": "a6b836422f6d89cd935906280e98fd95345833f9",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "25", "buildJavaMin": "25", "toolchainJavaVersions": ["25"] },
+      "evidence": [
+        { "path": "buildSrc/src/main/groovy/io.micronaut.build.internal.convention-base.gradle", "line": 7, "reason": "Custom build convention sets micronautBuild.javaVersion=25, which general literal parsers may miss." },
+        { "path": "buildSrc/src/main/groovy/io.micronaut.build.internal.convention-base.gradle", "line": 34, "reason": "Convention also sets source/target 25." },
+        { "path": "aop/build.gradle.kts", "line": 1, "reason": "Selected native module applies the core-library convention and Kotlin plugin; preserve annotation-processing/mixed-language model." }
+      ],
+      "blockedReasons": []
+    },
+    "transmittable-thread-local": {
+      "commit": "01639f2b93c91c79be10655edecd5c64dfc31cd2",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "8", "mavenMin": "3.3.9" },
+      "evidence": [
+        { "path": "pom.xml", "line": 72, "reason": "Root source/target are 8 and Kotlin 1.9.25 is declared." },
+        { "path": "pom.xml", "line": 414, "reason": "Maven minimum is 3.3.9." },
+        { "path": ".github/workflows/ci.yaml", "line": 11, "reason": "Ordinary checkout/package is tested across multiple JDKs; scripts/bash-buddy submodule is not proven mandatory for the selected Java import." }
+      ],
+      "blockedReasons": []
+    },
+    "mapstruct": {
+      "commit": "211b2be6205a720f30aad77e5b94cd1fac441443",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "8", "buildJavaMin": "21" },
+      "evidence": [
+        { "path": "parent/pom.xml", "line": 27, "reason": "Root/core inherit the in-repository parent's Java 8 baseline." },
+        { "path": "parent/pom.xml", "line": 741, "reason": "Inherited enforcer applies each module's minimum.java.version." },
+        { "path": "processor/pom.xml", "line": 25, "reason": "Included processor overrides minimum.java.version to 21; root probe target 8 does not remove this native reactor requirement." },
+        { "path": "processor/pom.xml", "line": 324, "reason": "Processor Java/Kotlin tests target 21." },
+        { "path": "readme.md", "line": 131, "reason": "Native source-build instructions explicitly require JDK 21 and gem annotation processing." }
+      ],
+      "blockedReasons": []
+    },
+    "scribejava": {
+      "commit": "8970e8eeb0aff840d0b223890e9c392ee19218f7",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": {},
+      "evidence": [
+        { "path": "pom.xml", "line": 142, "reason": "Native Maven compiler release is 7; this does not demand an exact Java 7 installation." },
+        { "path": "pom.xml", "line": 11, "reason": "Pinned oss-parent:9 excludes old broken Maven versions, not the ordinary modern Maven runtime; source parser should retain this native inheritance." }
+      ],
+      "blockedReasons": []
+    },
+    "junit-framework": {
+      "commit": "21abf15952ec6517f972cb06b0e5b7bf28a6763a",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "17", "buildJavaMin": "25", "toolchainJavaVersions": ["25"] },
+      "evidence": [
+        { "path": "gradle/gradle-daemon-jvm.properties", "line": 1, "reason": "Native daemon criteria explicitly request Java 25, separately from production release." },
+        { "path": "gradle/plugins/common/src/main/kotlin/junitbuild.java-toolchain-conventions.gradle.kts", "line": 7, "reason": "Java/Kotlin toolchain defaults to 25; explicitly provide it even though Foojay is configured." },
+        { "path": "gradle/plugins/common/src/main/kotlin/JavaLibraryExtension.kt", "line": 5, "reason": "Main target is 17 while test target is 25." }
+      ],
+      "blockedReasons": []
+    },
+    "opensearch": {
+      "commit": "af1e9151c631bb3f5cd7ba8890b4805507c32cf2",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "21", "buildJavaMin": "21" },
+      "evidence": [
+        { "path": "buildSrc/build.gradle", "line": 42, "reason": "Native buildSrc explicitly requires Java at least 21." },
+        { "path": "buildSrc/src/main/resources/minimumCompilerVersion", "line": 1, "reason": "Minimum compiler version is 21." },
+        { "path": "buildSrc/src/main/resources/minimumRuntimeVersion", "line": 1, "reason": "Minimum native project runtime is 21." },
+        { "path": "settings.gradle", "line": 155, "reason": "Java 25 sandbox modules are excluded unless enabled; do not raise all JVMs for an inactive profile." }
+      ],
+      "blockedReasons": []
+    },
+    "btrace": {
+      "commit": "de9d9862d69fda35d707b17053b7cf141f6c9a00",
+      "scope": "native",
+      "buildRoot": ".",
+      "constraints": { "projectJavaMin": "8", "buildJavaMin": "11", "toolchainJavaVersions": ["8", "11", "17", "24"] },
+      "evidence": [
+        { "path": "common.gradle", "line": 20, "reason": "Common convention selects Java 11 compiler for Java 8 targets and module-specific Java 8 compilers." },
+        { "path": "common.gradle", "line": 60, "reason": "Java 8 tools.jar/javadoc must be supplied alongside modern toolchains." },
+        { "path": "btrace-agent/build.gradle", "line": 4, "reason": "Native agent adds Java 24 sources/tooling." },
+        { "path": "btrace-gradle-plugin/build.gradle", "line": 11, "reason": "Included plugin selects Java 11." },
+        { "path": "btrace-gradle-plugin/build.gradle", "line": 43, "reason": "Plugin TestKit workers require Java 17." }
+      ],
+      "blockedReasons": []
+    }
+  }
+}
