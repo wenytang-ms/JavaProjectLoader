@@ -36,6 +36,7 @@ import {
   setupJavaPackageVersion,
 } from "./environment-toolchains.mjs";
 import { resolveNativeCompilerRequirements, verifyNativeCompilerRequirements } from "./environment-qualification.mjs";
+import { canonicalJavaPackageVersion, comparableJavaPackageVersion } from "./java-package-catalog.mjs";
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const recipesPath = path.resolve(scriptDirectory, "..", "t1-environment-recipes.json");
@@ -160,7 +161,7 @@ function exportPlan(plan, lock = null, project = null) {
   ));
 }
 
-function recordJava(plan, directory, role) {
+async function recordJava(plan, directory, role) {
   const records = javaHomes(directory).filter((item) => item.role !== role);
   const requested = role === "toolchain"
     ? plan.java.toolchains.versions.map((version) => ({
@@ -175,9 +176,22 @@ function recordJava(plan, directory, role) {
       ? process.env[`JAVA_HOME_${major}_${process.arch.toUpperCase()}`]
       : process.env.JAVA_HOME;
     const observed = inspectJavaHome(home, major, `${role} JDK ${major}`);
+    const cachedVersion = setupJavaPackageVersion(home, process.env.RUNNER_TOOL_CACHE);
+    const lockPath = path.join(directory, "environment-lock.json");
+    const locked = fs.existsSync(lockPath) ? readEnvironmentJson(lockPath).javaInstallations.find((entry) =>
+      entry.role === role && entry.expectedVersion === major && entry.distribution === item.distribution) : null;
+    if (fs.existsSync(lockPath) && !locked) throw new Error(`No locked ${role} Java ${major} installation exists.`);
+    const previous = records.find((entry) => entry.home === home && entry.setupJavaCacheVersion === cachedVersion &&
+      entry.distribution === item.distribution && entry.exactVersion === observed.exactVersion);
+    const packageVersion = locked ? lockedSetupJavaVersion(locked) : previous?.setupJavaVersion ??
+      await canonicalJavaPackageVersion({ version: cachedVersion, distribution: item.distribution });
+    if (comparableJavaPackageVersion(packageVersion) !== comparableJavaPackageVersion(cachedVersion)) {
+      throw new Error(`Installed ${role} JDK package does not match its locked catalog identity.`);
+    }
     records.push({
       ...observed, role, version: major, distribution: item.distribution,
-      setupJavaVersion: setupJavaPackageVersion(home, process.env.RUNNER_TOOL_CACHE),
+      setupJavaVersion: packageVersion,
+      setupJavaCacheVersion: cachedVersion,
     });
     if (role !== "toolchain") {
       const key = { project: "T1_PROJECT_JAVA_HOME", build: "T1_BUILD_JAVA_HOME", runtime: "T1_LANGUAGE_SERVER_JAVA_HOME", sdk: "T1_ANDROID_SDK_JAVA_HOME" }[role];
@@ -537,7 +551,7 @@ async function main() {
       }
       exportPlan(plan, lock, project);
     } else if (phase === "record-java") {
-      recordJava(plan, directory, argument("--role"));
+      await recordJava(plan, directory, argument("--role"));
     } else if (phase === "provision") {
       provisionPlannedProject(project, plan, directory);
     } else if (phase === "refine") {

@@ -645,6 +645,11 @@ export function createProjectSettings(
   if (languageServerJavaHome) {
     settings["java.jdt.ls.java.home"] = languageServerJavaHome;
   }
+  if (environment.T1_REQUIRE_ENVIRONMENT_READY === "1" &&
+      Number(providerSetup.runtimeJava?.version) >= 26) {
+    // The pinned prerelease's AppCDS launcher adds a VM option removed in Java 26.
+    settings["java.jdt.ls.appcds.enabled"] = "off";
+  }
   if (projectJavaHome) {
     const homes = environment.T1_JAVA_HOMES_JSON
       ? JSON.parse(environment.T1_JAVA_HOMES_JSON)
@@ -1010,6 +1015,7 @@ export function provisionProjectEnvironment(
       distribution: entry.distribution,
       role: entry.role,
       setupJavaVersion: entry.setupJavaVersion,
+      setupJavaCacheVersion: entry.setupJavaCacheVersion,
     }));
   }
   result.maven = setup.buildTool === "maven"
