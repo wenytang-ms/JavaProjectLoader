@@ -1009,6 +1009,7 @@ export function provisionProjectEnvironment(
       ...inspectJavaHome(entry.home, entry.version, "Provisioned Java home"),
       distribution: entry.distribution,
       role: entry.role,
+      setupJavaVersion: entry.setupJavaVersion,
     }));
   }
   result.maven = setup.buildTool === "maven"

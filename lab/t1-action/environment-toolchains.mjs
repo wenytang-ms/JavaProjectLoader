@@ -1,5 +1,49 @@
 import path from "node:path";
 
+export function applyJavaPlatformPolicy(plan, { platform = process.platform, architecture = process.arch } = {}) {
+  if (platform !== "darwin" || architecture !== "arm64") return plan;
+  const result = structuredClone(plan);
+  for (const role of ["project", "build"]) {
+    const java = result.java[role];
+    if (java.version !== "8" || java.distribution !== "temurin") continue;
+    java.distribution = "zulu";
+    result.requirements.push({
+      name: "java.platformDistribution",
+      value: { role, version: "8", distribution: "zulu", platform, architecture },
+      evidence: [{
+        path: "jdk-platform-policy",
+        reason: "Temurin 8 has no macOS ARM64 package. Use native Zulu 8 without changing Java requirements; compilation and binary-lock checks still apply.",
+      }],
+    });
+  }
+  return result;
+}
+
+export function setupJavaPackageVersion(home, toolCacheRoot, platform = process.platform) {
+  if (!home || !toolCacheRoot) throw new Error("The setup-java installation cache was not recorded.");
+  const paths = platform === "win32" ? path.win32 : path.posix;
+  const parts = paths.relative(toolCacheRoot, home).split(paths.sep);
+  if (!/^Java_.+_jdk$/.test(parts[0]) || !/^(?:x64|arm64|x86)$/.test(parts[2]) ||
+      !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?$/.test(parts[1])) {
+    throw new Error(`Java home is not an identifiable setup-java package: ${home}`);
+  }
+  // setup-java stores its package SemVer with "+" replaced by "-" in the tool cache.
+  // This is not java.version: e.g. package 21.0.12+101.0 can report runtime 21.0.12.1.
+  const cached = parts[1];
+  if (cached.endsWith("-ea")) return cached;
+  return cached.includes("-ea.")
+    ? `${cached.replace("-ea.", "+")}-ea`
+    : cached.replace("-", "+");
+}
+
+export function lockedSetupJavaVersion(installation) {
+  const version = installation?.setupJavaVersion;
+  if (!/^\d+\.\d+\.\d+(?:[+-][0-9A-Za-z.-]+)?$/.test(version ?? "")) {
+    throw new Error(`Missing valid setup-java package version for locked ${installation?.role ?? "unknown"} JDK.`);
+  }
+  return version;
+}
+
 export function verifyJavaHomeSelectors(installations, environment = process.env) {
   const normalize = (home) => {
     const resolved = path.resolve(home);

@@ -28,7 +28,14 @@ import {
   verifyEnvironmentLock,
   verifyPreparedInputs,
 } from "./environment-lock.mjs";
-import { activateBuildJava, createMavenToolchainsXml } from "./environment-toolchains.mjs";
+import {
+  activateBuildJava,
+  applyJavaPlatformPolicy,
+  createMavenToolchainsXml,
+  lockedSetupJavaVersion,
+  setupJavaPackageVersion,
+} from "./environment-toolchains.mjs";
+import { resolveNativeCompilerRequirements, verifyNativeCompilerRequirements } from "./environment-qualification.mjs";
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const recipesPath = path.resolve(scriptDirectory, "..", "t1-environment-recipes.json");
@@ -95,7 +102,8 @@ function nativeCommand(command, args, { cwd, logFile, timeoutMs = 600_000 } = {}
   };
 }
 
-async function hydrateMaven(plan) {
+async function hydrateEnvironment(discovered) {
+  const plan = applyJavaPlatformPolicy(discovered);
   if (plan.build.tool !== "maven" || plan.build.sha512) return plan;
   const version = plan.build.version;
   if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`Unsupported Maven version: ${version}`);
@@ -128,25 +136,19 @@ export function plannedProject(project, plan) {
   return configured;
 }
 
-export function setupJavaVersion(version) {
-  const legacy = String(version).match(/^1\.8\.0_(\d+)/);
-  return legacy ? `8.0.${legacy[1]}` : String(version);
-}
-
 function exportPlan(plan, lock = null, project = null) {
   const values = environmentGithubOutputs(plan);
   if (lock) {
     for (const role of ["project", "build", "runtime"]) {
       const installation = lock.javaInstallations.find((item) => item.role === role);
       if (!installation) throw new Error(`Locked Java role is missing: ${role}`);
-      values[`${role}JavaVersion`] = setupJavaVersion(installation.exactVersion);
+      values[`${role}JavaVersion`] = lockedSetupJavaVersion(installation);
     }
     values.toolchainJavaVersions = lock.javaInstallations
       .filter((item) => item.role === "toolchain")
-      .map((item) => setupJavaVersion(item.exactVersion)).join("\n");
-    values.sdkJavaVersion = setupJavaVersion(
-      lock.javaInstallations.find((item) => item.role === "sdk")?.exactVersion ?? "17",
-    );
+      .map(lockedSetupJavaVersion).join("\n");
+    const sdk = lock.javaInstallations.find((item) => item.role === "sdk");
+    values.sdkJavaVersion = sdk ? lockedSetupJavaVersion(sdk) : "17";
   }
   values.goVersion = project?.projectSetup?.goVersion ?? "";
   values.bootstrapGradleVersion = plan.build.tool === "gradle" && !plan.build.wrapperPath
@@ -173,7 +175,10 @@ function recordJava(plan, directory, role) {
       ? process.env[`JAVA_HOME_${major}_${process.arch.toUpperCase()}`]
       : process.env.JAVA_HOME;
     const observed = inspectJavaHome(home, major, `${role} JDK ${major}`);
-    records.push({ ...observed, role, version: major, distribution: item.distribution });
+    records.push({
+      ...observed, role, version: major, distribution: item.distribution,
+      setupJavaVersion: setupJavaPackageVersion(home, process.env.RUNNER_TOOL_CACHE),
+    });
     if (role !== "toolchain") {
       const key = { project: "T1_PROJECT_JAVA_HOME", build: "T1_BUILD_JAVA_HOME", runtime: "T1_LANGUAGE_SERVER_JAVA_HOME", sdk: "T1_ANDROID_SDK_JAVA_HOME" }[role];
       appendEnvironment(key, home);
@@ -328,7 +333,7 @@ async function discover(project, directory, operatingSystem, recipe) {
   const source = path.join(directory, "source-checkout");
   runner.cloneRepository(project.repository, project.commit, source);
   const discovered = await discoverEnvironmentPlan(project, { checkoutPath: source, operatingSystem, recipe });
-  const plan = discovered.state === "ENV_BLOCKED" ? discovered : await hydrateMaven(discovered);
+  const plan = discovered.state === "ENV_BLOCKED" ? discovered : await hydrateEnvironment(discovered);
   writeJson(path.join(directory, "environment-plan.json"), plan);
   if (plan.state === "ENV_BLOCKED") {
     writeJson(path.join(directory, "environment-result.json"), environmentResult(project, plan, "ENV_BLOCKED"));
@@ -348,7 +353,7 @@ async function refine(project, plan, directory, recipe) {
     output("modelReady", "false");
     return;
   }
-  const updated = await hydrateMaven(await discoverEnvironmentPlan(project, {
+  const updated = await hydrateEnvironment(await discoverEnvironmentPlan(project, {
     checkoutPath: path.join(directory, "source-checkout"),
     operatingSystem: plan.operatingSystem,
     recipe,
@@ -374,13 +379,19 @@ async function qualify(project, plan, directory, recipe) {
     ));
     return;
   }
-  const resolved = await hydrateMaven(await discoverEnvironmentPlan(project, {
+  let resolved = await hydrateEnvironment(await discoverEnvironmentPlan(project, {
     checkoutPath: path.join(directory, "source-checkout"),
     operatingSystem: plan.operatingSystem,
     recipe,
     effectiveMavenModels: observed.models,
     effectiveGradleModel: observed.gradleModel,
   }));
+  resolved = resolveNativeCompilerRequirements(resolved, {
+    nativeResult: observed.result,
+    nativeLog: fs.readFileSync(path.join(directory, "native-baseline.log"), "utf8"),
+    javaInstallations: host.javaInstallations,
+    effectiveMavenModels: observed.models,
+  });
   if (resolved.state !== "PLANNED" || hashValue(environmentStack(resolved)) !== hashValue(environmentStack(plan))) {
     writeJson(path.join(directory, "environment-result.json"), environmentResult(project, resolved,
       resolved.state === "ENV_BLOCKED" ? "ENV_BLOCKED" : "ENV_UNVERIFIED",
@@ -444,6 +455,18 @@ async function replay(project, plan, directory) {
     writeJson(path.join(directory, "environment-result.json"), environmentResult(project, plan,
       observed.result.error ? "ENV_UNVERIFIED" : "PROJECT_BASELINE_FAILED",
       { reason: "The neutral native baseline could not be reproduced.", nativeModel: observed.result }));
+    return;
+  }
+  const compilerProof = verifyNativeCompilerRequirements(plan, {
+    nativeResult: observed.result,
+    nativeLog: fs.readFileSync(path.join(directory, "native-baseline.log"), "utf8"),
+    javaInstallations: host.javaInstallations,
+    effectiveMavenModels: observed.models,
+  });
+  if (!compilerProof.verified) {
+    writeJson(path.join(directory, "environment-result.json"), environmentResult(project, plan, "ENV_UNVERIFIED", {
+      reason: compilerProof.reason,
+    }));
     return;
   }
   const actual = snapshotPreparedInputs(observed.checkout, observed.prepared.configured, javaHomes(directory));
