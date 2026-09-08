@@ -5,9 +5,31 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { loadProjects } from "../create-matrix.mjs";
+import { createComparisonMatrix } from "../create-jdtls-oracle-matrix.mjs";
 import { discoverConfiguredEnvironmentPlan } from "../configured-environment.mjs";
 import { applyEnvironmentPlan, environmentGithubOutputs } from "../environment-plan.mjs";
 import { hashValue } from "../environment-lock.mjs";
+
+test("the reviewed pilot contains exactly ten pinned cases and forty provider observations", () => {
+  const projects = loadProjects();
+  const expected = [
+    "guava", "arthas", "jjwt", "javalin", "mybatis-3",
+    "mockito", "jadx", "btrace", "junit-framework", "metrics",
+  ];
+  const reviewed = projects.filter((project) => project.projectSetup?.configuredSource === true);
+  assert.deepEqual(reviewed.map((project) => project.id).sort(), [...expected].sort());
+  for (const project of reviewed) {
+    assert.ok(project.projectSetup.providers.jdtls.buildJava?.version, project.id);
+    assert.equal(project.syntheticMavenTargetFile, undefined, project.id);
+  }
+  const matrix = createComparisonMatrix({
+    projects, requestedProjects: expected.join(","), operatingSystem: "all",
+  });
+  assert.equal(matrix.matrixEntries.length, 40);
+  for (const operatingSystem of ["windows-latest", "macos-latest"]) {
+    assert.equal(matrix.matrixEntries.filter((entry) => entry.os === operatingSystem).length, 20);
+  }
+});
 
 function fixture(t, buildTool = "maven") {
   const checkoutPath = fs.mkdtempSync(path.join(os.tmpdir(), "t1-configured-source-"));

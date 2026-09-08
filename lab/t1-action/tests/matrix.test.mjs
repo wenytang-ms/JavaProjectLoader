@@ -141,7 +141,7 @@ test("import repair contracts expose required JDKs and toolchains", () => {
 
   assert.equal(
     byProject.get("btrace").environment.toolchainJavaVersions,
-    "8\n11\n17",
+    "8\n11\n17\n24",
   );
   assert.equal(
     byProject.get("btrace").environment.toolchainJavaDistribution,

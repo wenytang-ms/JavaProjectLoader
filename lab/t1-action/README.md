@@ -15,7 +15,7 @@ remains `NOT_EVALUATED`; provider and diagnostic failures are not suppressed.
 For the ten-case pilot, dispatch `t1-jdtls-oracle.yml` with:
 
 - `environment_mode`: `configured-source`
-- `projects`: `guava,arthas,jjwt,javalin,mybatis-3,mockito,jadx,btrace,junit-framework,okhttp`
+- `projects`: `guava,arthas,jjwt,javalin,mybatis-3,mockito,jadx,btrace,junit-framework,metrics`
 - `operating_system`: `windows-latest` or `macos-latest`
 - `vscode_version`: `1.136.1`
 
@@ -23,3 +23,7 @@ Each dispatch schedules 10 environment jobs and 20 isolated provider jobs.
 Records retain `comparisonMode: configured-source`; do not merge them with
 historical out-of-box or prebuilt results. Provider Ready, Semantic Ready and
 Workspace Diagnostics continue to use the existing collectors.
+
+OkHttp is deferred: its fixed probe belongs to `module-tests`, which the pinned
+project disables by default. This pilot uses Metrics instead rather than
+silently changing OkHttp's project flags or counting an inactive source file.

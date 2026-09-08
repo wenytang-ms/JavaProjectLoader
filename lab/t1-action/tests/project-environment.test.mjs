@@ -57,7 +57,10 @@ test("every project exposes complete provider host requirements", () => {
       });
 
       assert.equal(plan.status, "planned");
-      assert.equal(plan.requirements.projectJava.version, project.javaVersion);
+      assert.equal(
+        plan.requirements.projectJava.version,
+        project.projectSetup.providers[provider].projectJava.version,
+      );
       assert.match(plan.requirements.buildTool, /^(gradle|maven)$/);
     }
   }

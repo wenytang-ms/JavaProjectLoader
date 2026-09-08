@@ -436,6 +436,7 @@
     },
     {
       "id": "guava",
+      "configuredSource": true,
       "repository": "https://github.com/google/guava.git",
       "commit": "40e7de083329969a54a0b8a84d01c6f0614447d2",
       "csvBaseline": {
@@ -448,7 +449,7 @@
       "buildTool": "maven",
       "buildToolVersion": "3.9.11",
       "buildToolVersionSource": "Pinned by the T1 harness because the repository has no required Maven runtime.",
-      "selectionReason": "Selected in CSV order from repositories active within six months; the pinned revision contains a usable Java probe and supported build layout.",
+      "selectionReason": "Explicit pinned environment: CI launches Maven on Temurin 26 and the POM selects a Java 26 compiler toolchain for Java 8 bytecode; both providers use neutral Temurin 26 server runtimes.",
       "buildDescriptors": {
         "maven": [
           "pom.xml",
@@ -456,16 +457,26 @@
         ],
         "gradle": []
       },
+      "toolchainJava": {
+        "distribution": "temurin",
+        "versions": [
+          "26"
+        ]
+      },
       "providers": {
         "jdtls": {
           "runtimeJava": {
             "source": "setup-java",
             "distribution": "temurin",
-            "version": "21"
+            "version": "26"
           },
           "projectJava": {
             "distribution": "temurin",
             "version": "26"
+          },
+          "buildJava": {
+            "version": "26",
+            "distribution": "temurin"
           },
           "vscodeSettings": {
             "java.import.maven.enabled": true,
@@ -489,6 +500,7 @@
       "evidenceFiles": [
         "pom.xml",
         "guava/pom.xml",
+        ".github/workflows/ci.yml",
         "guava/src/com/google/common/base/Strings.java"
       ],
       "corpusEvidence": {
@@ -731,6 +743,7 @@
     },
     {
       "id": "jadx",
+      "configuredSource": true,
       "repository": "https://github.com/skylot/jadx.git",
       "commit": "e738a26571d02919f01df40de93bc9a44dee4e18",
       "csvBaseline": {
@@ -743,7 +756,7 @@
       "buildTool": "gradle",
       "buildToolVersion": "9.6.1",
       "buildToolVersionSource": "gradle/wrapper/gradle-wrapper.properties",
-      "selectionReason": "Selected in CSV order from repositories active within six months; the pinned revision contains a usable Java probe and supported build layout.",
+      "selectionReason": "Explicit pinned environment: retain the Java 21 project/build/server roles observed in successful native compilation on both OSes; Java conventions preserve source/target 11. Optional JADX_TEST_JAVA_VERSION test launchers do not add compiler requirements.",
       "buildDescriptors": {
         "maven": [],
         "gradle": [
@@ -762,6 +775,10 @@
           "projectJava": {
             "distribution": "temurin",
             "version": "21"
+          },
+          "buildJava": {
+            "version": "21",
+            "distribution": "temurin"
           },
           "vscodeSettings": {
             "java.import.maven.enabled": false,
@@ -784,6 +801,7 @@
         "settings.gradle.kts",
         "build.gradle.kts",
         "jadx-core/build.gradle.kts",
+        "buildSrc/src/main/kotlin/jadx-java.gradle.kts",
         "gradle/wrapper/gradle-wrapper.properties",
         "jadx-core/src/main/java/jadx/core/Jadx.java"
       ],
@@ -934,6 +952,7 @@
     },
     {
       "id": "arthas",
+      "configuredSource": true,
       "repository": "https://github.com/alibaba/arthas.git",
       "commit": "a5ecd7a84a93da8761b396fae2eee95301b3d6ff",
       "csvBaseline": {
@@ -946,7 +965,7 @@
       "buildTool": "maven",
       "buildToolVersion": "3.9.11",
       "buildToolVersionSource": "Pinned by the T1 harness because the repository has no required Maven runtime.",
-      "selectionReason": "Selected in CSV order from repositories active within six months; the pinned revision contains a usable Java probe and supported build layout.",
+      "selectionReason": "Explicit pinned environment: the native Maven baseline and math-game probe inherit Java 8 source/target; provision Java 8 for project and build roles and neutral Temurin 21 for both provider servers. JDK-activated profiles remain controlled by the unmodified POM.",
       "buildDescriptors": {
         "maven": [
           "pom.xml",
@@ -963,7 +982,11 @@
           },
           "projectJava": {
             "distribution": "temurin",
-            "version": "17"
+            "version": "8"
+          },
+          "buildJava": {
+            "version": "8",
+            "distribution": "temurin"
           },
           "vscodeSettings": {
             "java.import.maven.enabled": true,
@@ -1879,6 +1902,7 @@
     },
     {
       "id": "mybatis-3",
+      "configuredSource": true,
       "repository": "https://github.com/mybatis/mybatis-3.git",
       "commit": "69ee03634a27808553fede707dcc4ef70478e0be",
       "csvBaseline": {
@@ -1889,9 +1913,9 @@
         "intellijResult": null
       },
       "buildTool": "maven",
-      "buildToolVersion": "3.9.11",
-      "buildToolVersionSource": "Pinned by the T1 harness because the repository has no required Maven runtime.",
-      "selectionReason": "Selected in CSV order from repositories active within six months; the pinned revision contains a usable Java probe and supported build layout.",
+      "buildToolVersion": "3.9.16",
+      "buildToolVersionSource": "Pinned mybatis-parent 52 requires Maven 3.9.16; the repository wrapper and prior successful native compilation use this version.",
+      "selectionReason": "Explicit pinned environment: Java 17 covers the native Java 11 main and Java 17 test source model; parent 52 requires a supported Java 21 build JVM and Maven 3.9.16. Both providers use neutral Temurin 21 servers, matching prior successful native compilation.",
       "buildDescriptors": {
         "maven": [
           "pom.xml"
@@ -1907,7 +1931,11 @@
           },
           "projectJava": {
             "distribution": "temurin",
-            "version": "11"
+            "version": "17"
+          },
+          "buildJava": {
+            "version": "21",
+            "distribution": "temurin"
           },
           "vscodeSettings": {
             "java.import.maven.enabled": true,
@@ -1927,6 +1955,7 @@
       },
       "evidenceFiles": [
         "pom.xml",
+        ".mvn/wrapper/maven-wrapper.properties",
         "src/main/java/org/apache/ibatis/annotations/Arg.java"
       ],
       "corpusEvidence": {
@@ -1938,8 +1967,8 @@
         "batch": 2
       },
       "maven": {
-        "downloadUrl": "https://archive.apache.org/dist/maven/maven-3/3.9.11/binaries/apache-maven-3.9.11-bin.zip",
-        "sha512": "03e2d65d4483a3396980629f260e25cac0d8b6f7f2791e4dc20bc83f9514db8d0f05b0479e699a5f34679250c49c8e52e961262ded468a20de0be254d8207076"
+        "downloadUrl": "https://archive.apache.org/dist/maven/maven-3/3.9.16/binaries/apache-maven-3.9.16-bin.zip",
+        "sha512": "ed41650d42485cfc243fad22158caf9cbb5dc408ce7a09ddb94dd42a019de929ca43065bfa450612cf12bf78b5cafa3884b96c090de326ff590448c933454af3"
       }
     },
     {
@@ -2498,6 +2527,7 @@
     },
     {
       "id": "mockito",
+      "configuredSource": true,
       "repository": "https://github.com/mockito/mockito.git",
       "commit": "5a676bcd9ef9a10db46e1dc34e190eb46faa2687",
       "csvBaseline": {
@@ -2510,13 +2540,19 @@
       "buildTool": "gradle",
       "buildToolVersion": "8.14.2",
       "buildToolVersionSource": "gradle/wrapper/gradle-wrapper.properties",
-      "selectionReason": "Selected in CSV order from repositories active within six months; the pinned revision contains a usable Java probe and supported build layout.",
+      "selectionReason": "Explicit pinned environment: the included java-21-tests module selects compiler 21 while core conventions retain Java 11 targets. Use the successful native Java 21 project/build/server roles and compiler toolchain; mockito.test.java configures test launchers, not additional compilers.",
       "buildDescriptors": {
         "maven": [],
         "gradle": [
           "settings.gradle.kts",
           "build.gradle.kts",
           "mockito-core/build.gradle.kts"
+        ]
+      },
+      "toolchainJava": {
+        "distribution": "temurin",
+        "versions": [
+          "21"
         ]
       },
       "providers": {
@@ -2529,6 +2565,10 @@
           "projectJava": {
             "distribution": "temurin",
             "version": "21"
+          },
+          "buildJava": {
+            "version": "21",
+            "distribution": "temurin"
           },
           "vscodeSettings": {
             "java.import.maven.enabled": false,
@@ -2551,6 +2591,8 @@
         "settings.gradle.kts",
         "build.gradle.kts",
         "mockito-core/build.gradle.kts",
+        "buildSrc/src/main/kotlin/mockito.java-conventions.gradle.kts",
+        "mockito-integration-tests/java-21-tests/build.gradle.kts",
         "gradle/wrapper/gradle-wrapper.properties",
         "mockito-core/src/main/java/org/mockito/AdditionalAnswers.java"
       ],
@@ -3849,6 +3891,7 @@
     },
     {
       "id": "jjwt",
+      "configuredSource": true,
       "repository": "https://github.com/jwtk/jjwt.git",
       "commit": "401ba26ee72969c373d62a618b48444fc01e0e73",
       "csvBaseline": {
@@ -3861,7 +3904,7 @@
       "buildTool": "maven",
       "buildToolVersion": "3.9.11",
       "buildToolVersionSource": "Pinned by the T1 harness because the repository has no required Maven runtime.",
-      "selectionReason": "Selected in CSV order from repositories active within six months; the pinned revision contains a usable Java probe and supported build layout.",
+      "selectionReason": "Explicit pinned environment: the POM targets Java 8 and enforces Java 17 or newer for Maven. Use the previously successful Java 8 project/Java 17 build combination with neutral Temurin 21 provider servers; optional test.jdk.version profiles do not require extra installed compilers.",
       "buildDescriptors": {
         "maven": [
           "pom.xml",
@@ -3878,7 +3921,11 @@
           },
           "projectJava": {
             "distribution": "temurin",
-            "version": "17"
+            "version": "8"
+          },
+          "buildJava": {
+            "version": "17",
+            "distribution": "temurin"
           },
           "vscodeSettings": {
             "java.import.maven.enabled": true,
@@ -4256,6 +4303,7 @@
     },
     {
       "id": "metrics",
+      "configuredSource": true,
       "repository": "https://github.com/dropwizard/metrics.git",
       "commit": "2f4a844a33f6190a6177d82a68aca496ef3159d7",
       "csvBaseline": {
@@ -4268,7 +4316,7 @@
       "buildTool": "maven",
       "buildToolVersion": "3.9.11",
       "buildToolVersionSource": "Pinned by the T1 harness because the repository has no required Maven runtime.",
-      "selectionReason": "Selected in CSV order from repositories active within six months; the pinned revision contains a usable Java probe and supported build layout.",
+      "selectionReason": "Explicit Java 17 project SDK and build JVM with Maven 3.9.11, matching the successful native environment on both operating systems. Keep the neutral Java 21 provider runtime separate; source-workspace import does not require identical JVM binaries or a native compilation gate.",
       "buildDescriptors": {
         "maven": [
           "pom.xml",
@@ -4286,6 +4334,10 @@
           "projectJava": {
             "distribution": "temurin",
             "version": "17"
+          },
+          "buildJava": {
+            "version": "17",
+            "distribution": "temurin"
           },
           "vscodeSettings": {
             "java.import.maven.enabled": true,
@@ -5911,6 +5963,7 @@
     },
     {
       "id": "javalin",
+      "configuredSource": true,
       "repository": "https://github.com/javalin/javalin.git",
       "commit": "cdfa0f7249f8c8ffca2b42a5969c3e45369d2c1c",
       "csvBaseline": {
@@ -5923,7 +5976,7 @@
       "buildTool": "maven",
       "buildToolVersion": "3.9.11",
       "buildToolVersionSource": "Pinned by the T1 harness because the repository has no required Maven runtime.",
-      "selectionReason": "Selected in CSV order from repositories active within six months; the pinned revision contains a usable Java probe and supported build layout.",
+      "selectionReason": "Explicit pinned environment: native compiler release and build requirements are Java 17. Retain the successful Java 17 project/build roles and neutral Temurin 21 provider servers without changing annotation processing or build checks.",
       "buildDescriptors": {
         "maven": [
           "pom.xml",
@@ -5941,6 +5994,10 @@
           "projectJava": {
             "distribution": "temurin",
             "version": "17"
+          },
+          "buildJava": {
+            "version": "17",
+            "distribution": "temurin"
           },
           "vscodeSettings": {
             "java.import.maven.enabled": true,
@@ -6660,6 +6717,7 @@
     },
     {
       "id": "junit-framework",
+      "configuredSource": true,
       "repository": "https://github.com/junit-team/junit-framework.git",
       "commit": "21abf15952ec6517f972cb06b0e5b7bf28a6763a",
       "csvBaseline": {
@@ -6672,7 +6730,7 @@
       "buildTool": "gradle",
       "buildToolVersion": "9.7.0",
       "buildToolVersionSource": "gradle/wrapper/gradle-wrapper.properties",
-      "selectionReason": "Selected in CSV order from repositories active within six months; the pinned revision contains a usable Java probe and supported build layout.",
+      "selectionReason": "Explicit pinned environment: daemon criteria and default Java conventions select Java 25, including the Java 25 test source model. Retain Java 17 for the selected vintage module's Groovy test-fixture compiler; both provider servers use neutral Temurin 25.",
       "buildDescriptors": {
         "maven": [],
         "gradle": [
@@ -6680,16 +6738,27 @@
           "build.gradle.kts"
         ]
       },
+      "toolchainJava": {
+        "distribution": "temurin",
+        "versions": [
+          "17",
+          "25"
+        ]
+      },
       "providers": {
         "jdtls": {
           "runtimeJava": {
             "source": "setup-java",
             "distribution": "temurin",
-            "version": "21"
+            "version": "25"
           },
           "projectJava": {
             "distribution": "temurin",
             "version": "25"
+          },
+          "buildJava": {
+            "version": "25",
+            "distribution": "temurin"
           },
           "vscodeSettings": {
             "java.import.maven.enabled": false,
@@ -6711,6 +6780,10 @@
       "evidenceFiles": [
         "settings.gradle.kts",
         "build.gradle.kts",
+        "gradle/gradle-daemon-jvm.properties",
+        "gradle/plugins/common/src/main/kotlin/junitbuild.java-toolchain-conventions.gradle.kts",
+        "gradle/plugins/common/src/main/kotlin/JavaLibraryExtension.kt",
+        "junit-vintage-engine/junit-vintage-engine.gradle.kts",
         "gradle/wrapper/gradle-wrapper.properties",
         "junit-start/src/main/java/org/junit/start/JUnit.java"
       ],
@@ -6800,6 +6873,7 @@
     },
     {
       "id": "btrace",
+      "configuredSource": true,
       "repository": "https://github.com/btraceio/btrace.git",
       "commit": "de9d9862d69fda35d707b17053b7cf141f6c9a00",
       "csvBaseline": {
@@ -6812,7 +6886,7 @@
       "buildTool": "gradle",
       "buildToolVersion": "9.5.1",
       "buildToolVersionSource": "gradle/wrapper/gradle-wrapper.properties",
-      "selectionReason": "Selected in CSV order from repositories active within six months; the pinned revision contains a usable Java probe and supported build layout.",
+      "selectionReason": "Explicit pinned environment: main compilers require Java 8/11 and the agent's multi-release sources require compiler 24. Preserve the existing Java 17 TestKit launcher installation and per-OS toolchain vendors; use build Java 21 and neutral Java 24 project/server roles. Java 26 is only the classFileApiBackendTest launcher, not an import compiler.",
       "buildDescriptors": {
         "maven": [],
         "gradle": [
@@ -6830,31 +6904,27 @@
         "versions": [
           "8",
           "11",
-          "17"
+          "17",
+          "24"
         ]
       },
       "gradleToolchains": {
         "restrictToConfiguredJdks": true
-      },
-      "checkout": {
-        "windowsGradleExecutableExtensions": {
-          "file": "common.gradle",
-          "tools": [
-            "javac",
-            "javadoc"
-          ]
-        }
       },
       "providers": {
         "jdtls": {
           "runtimeJava": {
             "source": "setup-java",
             "distribution": "temurin",
-            "version": "21"
+            "version": "24"
           },
           "projectJava": {
             "distribution": "temurin",
             "version": "24"
+          },
+          "buildJava": {
+            "version": "21",
+            "distribution": "temurin"
           },
           "vscodeSettings": {
             "java.import.maven.enabled": false,
@@ -6876,6 +6946,9 @@
       "evidenceFiles": [
         "settings.gradle",
         "build.gradle",
+        "common.gradle",
+        "btrace-agent/build.gradle",
+        "btrace-gradle-plugin/build.gradle",
         "integration-tests/build.gradle",
         "gradle/wrapper/gradle-wrapper.properties",
         "integration-tests/src/main/java/dummy/SimpleEvent.java"
