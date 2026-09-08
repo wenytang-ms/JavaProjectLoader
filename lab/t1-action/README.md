@@ -12,6 +12,10 @@ the identical-JDK annotation-processor proof. Existing checkout preparation and
 provider isolation are retained. Failed preparation prevents IDE startup and
 remains `NOT_EVALUATED`; provider and diagnostic failures are not suppressed.
 
+BTrace retains its pre-existing Windows `common.gradle` adaptation for
+`javac.exe` and `javadoc.exe`. This does not change its configured JDK versions
+or provider JVM arguments.
+
 For the ten-case pilot, dispatch `t1-jdtls-oracle.yml` with:
 
 - `environment_mode`: `configured-source`

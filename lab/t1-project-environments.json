@@ -6911,6 +6911,15 @@
       "gradleToolchains": {
         "restrictToConfiguredJdks": true
       },
+      "checkout": {
+        "windowsGradleExecutableExtensions": {
+          "file": "common.gradle",
+          "tools": [
+            "javac",
+            "javadoc"
+          ]
+        }
+      },
       "providers": {
         "jdtls": {
           "runtimeJava": {

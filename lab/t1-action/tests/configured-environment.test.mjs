@@ -31,6 +31,18 @@ test("the reviewed pilot contains exactly ten pinned cases and forty provider ob
   }
 });
 
+test("BTrace retains its existing Windows adaptation without changing JVM roles", () => {
+  const setup = loadProjects().find((project) => project.id === "btrace").projectSetup;
+  assert.deepEqual(setup.checkout.windowsGradleExecutableExtensions, {
+    file: "common.gradle",
+    tools: ["javac", "javadoc"],
+  });
+  const provider = setup.providers.jdtls;
+  assert.equal(provider.projectJava.version, "24");
+  assert.equal(provider.buildJava.version, "21");
+  assert.equal(provider.runtimeJava.version, "24");
+});
+
 function fixture(t, buildTool = "maven") {
   const checkoutPath = fs.mkdtempSync(path.join(os.tmpdir(), "t1-configured-source-"));
   t.after(() => fs.rmSync(checkoutPath, { recursive: true, force: true }));
