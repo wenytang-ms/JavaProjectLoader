@@ -12,6 +12,7 @@ import {
   environmentGithubOutputs,
 } from "./environment-plan.mjs";
 import {
+  discoverProjectEnvironment,
   findSdkManager,
   inspectJavaHome,
   provisionProjectEnvironment,
@@ -37,6 +38,11 @@ import {
 } from "./environment-toolchains.mjs";
 import { resolveNativeCompilerRequirements, verifyNativeCompilerRequirements } from "./environment-qualification.mjs";
 import { canonicalJavaPackageVersion, comparableJavaPackageVersion } from "./java-package-catalog.mjs";
+import {
+  CONFIGURED_SOURCE_MODE,
+  discoverConfiguredEnvironmentPlan,
+  isConfiguredSource,
+} from "./configured-environment.mjs";
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const recipesPath = path.resolve(scriptDirectory, "..", "t1-environment-recipes.json");
@@ -266,10 +272,32 @@ export async function preparePlannedWorkspace(project, plan, checkout) {
   runner.writeGradleToolchainProperties(checkout, toolchains);
   if (plan.build.tool === "gradle") {
     const root = resolveBuildRoot(checkout, plan.buildRoot);
+    const wrapper = path.join(root, process.platform === "win32" ? "gradlew.bat" : "gradlew");
+    if (isConfiguredSource(plan)) {
+      if (!fs.existsSync(wrapper)) throw new Error(`Configured Gradle wrapper is missing: ${wrapper}`);
+      if (process.platform !== "win32") fs.chmodSync(wrapper, fs.statSync(wrapper).mode | 0o100);
+    }
     const home = process.env.T1_BUILD_JAVA_HOME.replaceAll("\\", "/");
     fs.appendFileSync(path.join(root, "gradle.properties"), `\norg.gradle.java.home=${home}\n`);
   }
   return { configured, checkoutSetup, toolchains };
+}
+
+async function prepareConfiguredWorkspace(project, plan, directory) {
+  const checkout = path.join(directory, "prepared-checkout");
+  const prepared = await preparePlannedWorkspace(project, plan, checkout);
+  const discovery = discoverProjectEnvironment(
+    prepared.configured, checkout, "jdtls", resolveBuildRoot(checkout, plan.buildRoot),
+  );
+  const probe = resolveBuildRoot(checkout, project.relativeFile);
+  if (!fs.statSync(probe).isFile()) throw new Error(`Configured probe is not a file: ${probe}`);
+  writeJson(path.join(directory, "checkout-setup.json"), prepared.checkoutSetup);
+  writeJson(path.join(directory, "configured-preparation.json"), {
+    project: project.id, commit: project.commit, operatingSystem: plan.operatingSystem,
+    comparisonMode: CONFIGURED_SOURCE_MODE,
+    prepared: true, nativeCompilationPerformed: false, discovery,
+  });
+  return { checkout, prepared };
 }
 
 function mavenExecutable() {
@@ -346,7 +374,13 @@ async function discover(project, directory, operatingSystem, recipe) {
   const runner = await import("./run-t1-autotest.mjs");
   const source = path.join(directory, "source-checkout");
   runner.cloneRepository(project.repository, project.commit, source);
-  const discovered = await discoverEnvironmentPlan(project, { checkoutPath: source, operatingSystem, recipe });
+  const mode = process.env.T1_ENVIRONMENT_MODE ?? "prebuilt-workspace";
+  if (!["prebuilt-workspace", CONFIGURED_SOURCE_MODE].includes(mode)) {
+    throw new Error(`Unknown environment mode: ${mode}`);
+  }
+  const discovered = mode === CONFIGURED_SOURCE_MODE
+    ? discoverConfiguredEnvironmentPlan(project, { checkoutPath: source, operatingSystem })
+    : await discoverEnvironmentPlan(project, { checkoutPath: source, operatingSystem, recipe });
   const plan = discovered.state === "ENV_BLOCKED" ? discovered : await hydrateEnvironment(discovered);
   writeJson(path.join(directory, "environment-plan.json"), plan);
   if (plan.state === "ENV_BLOCKED") {
@@ -357,6 +391,11 @@ async function discover(project, directory, operatingSystem, recipe) {
 
 async function refine(project, plan, directory, recipe) {
   if (plan.state === "ENV_BLOCKED") return;
+  if (isConfiguredSource(plan)) {
+    output("reprovision", "false");
+    output("modelReady", "true");
+    return;
+  }
   provisionPlannedProject(project, plan, directory);
   const observed = await nativeModel(project, plan, directory);
   if (!observed.result.successful) {
@@ -385,6 +424,11 @@ async function qualify(project, plan, directory, recipe) {
     return;
   }
   const { host } = provisionPlannedProject(project, plan, directory);
+  if (isConfiguredSource(plan)) {
+    const observed = await prepareConfiguredWorkspace(project, plan, directory);
+    completeQualification(project, plan, directory, host, observed);
+    return;
+  }
   const observed = await nativeModel(project, plan, directory, { validate: true });
   if (!observed.result.successful) {
     writeJson(path.join(directory, "environment-result.json"), environmentResult(
@@ -412,7 +456,11 @@ async function qualify(project, plan, directory, recipe) {
       { reason: "Native model still has unresolved requirements or needs another environment change." }));
     return;
   }
-  writeJson(path.join(directory, "environment-plan.json"), resolved);
+  completeQualification(project, resolved, directory, host, observed);
+}
+
+function completeQualification(project, plan, directory, host, observed) {
+  writeJson(path.join(directory, "environment-plan.json"), plan);
   const inputs = snapshotPreparedInputs(observed.checkout, observed.prepared.configured, javaHomes(directory));
   const lock = {
     schemaVersion: 1,
@@ -420,25 +468,28 @@ async function qualify(project, plan, directory, recipe) {
     commit: project.commit,
     operatingSystem: plan.operatingSystem,
     harnessCommit: harnessRevision(),
-    planHash: hashValue(resolved),
+    planHash: hashValue(plan),
     javaInstallations: host.javaInstallations ?? [],
     maven: host.maven,
     android: host.plannedAndroid ?? host.androidSdk,
     preparedInputs: inputs,
     preparationHash: hashValue(inputs),
-    qualification: plan.build.tool === "maven" ? "maven-test-compile" : "gradle-native-classes",
+    qualification: isConfiguredSource(plan) ? CONFIGURED_SOURCE_MODE
+      : plan.build.tool === "maven" ? "maven-test-compile" : "gradle-native-classes",
   };
   if (!lock.javaInstallations.length) throw new Error("No concrete JDK installation evidence was recorded.");
-  const lockErrors = verifyEnvironmentLock(project, resolved, lock, plan.operatingSystem, host.javaInstallations);
+  const lockErrors = verifyEnvironmentLock(project, plan, lock, plan.operatingSystem, host.javaInstallations);
   if (lockErrors.length) throw new Error(`Incomplete environment lock: ${JSON.stringify(lockErrors)}`);
   writeJson(path.join(directory, "environment-lock.json"), lock);
-  writeJson(path.join(directory, "environment-result.json"), environmentResult(project, resolved, "ENV_READY", {
+  writeJson(path.join(directory, "environment-result.json"), environmentResult(project, plan, "ENV_READY", {
     lockHash: hashValue(lock),
     preparationHash: lock.preparationHash,
-    nativeModel: observed.result,
+    ...(observed.result ? { nativeModel: observed.result } : {}),
     qualification: lock.qualification,
-    comparisonMode: "prebuilt-workspace",
-    caveat: "Confirms planned tools and native compilation, not execution of all tests or complete application deployment.",
+    comparisonMode: plan.comparisonMode ?? "prebuilt-workspace",
+    caveat: isConfiguredSource(plan)
+      ? "Confirms explicit tools and source-workspace preparation; no native compilation or provider success is asserted."
+      : "Confirms planned tools and native compilation, not execution of all tests or complete application deployment.",
   }));
 }
 
@@ -464,24 +515,29 @@ async function replay(project, plan, directory) {
     }));
     return;
   }
-  const observed = await nativeModel(project, plan, directory, { validate: true });
-  if (!observed.result.successful) {
+  const configuredSource = isConfiguredSource(plan);
+  const observed = configuredSource
+    ? await prepareConfiguredWorkspace(project, plan, directory)
+    : await nativeModel(project, plan, directory, { validate: true });
+  if (!configuredSource && !observed.result.successful) {
     writeJson(path.join(directory, "environment-result.json"), environmentResult(project, plan,
       observed.result.error ? "ENV_UNVERIFIED" : "PROJECT_BASELINE_FAILED",
       { reason: "The neutral native baseline could not be reproduced.", nativeModel: observed.result }));
     return;
   }
-  const compilerProof = verifyNativeCompilerRequirements(plan, {
-    nativeResult: observed.result,
-    nativeLog: fs.readFileSync(path.join(directory, "native-baseline.log"), "utf8"),
-    javaInstallations: host.javaInstallations,
-    effectiveMavenModels: observed.models,
-  });
-  if (!compilerProof.verified) {
-    writeJson(path.join(directory, "environment-result.json"), environmentResult(project, plan, "ENV_UNVERIFIED", {
-      reason: compilerProof.reason,
-    }));
-    return;
+  if (!configuredSource) {
+    const compilerProof = verifyNativeCompilerRequirements(plan, {
+      nativeResult: observed.result,
+      nativeLog: fs.readFileSync(path.join(directory, "native-baseline.log"), "utf8"),
+      javaInstallations: host.javaInstallations,
+      effectiveMavenModels: observed.models,
+    });
+    if (!compilerProof.verified) {
+      writeJson(path.join(directory, "environment-result.json"), environmentResult(project, plan, "ENV_UNVERIFIED", {
+        reason: compilerProof.reason,
+      }));
+      return;
+    }
   }
   const actual = snapshotPreparedInputs(observed.checkout, observed.prepared.configured, javaHomes(directory));
   const differences = verifyPreparedInputs(lock.preparedInputs, actual);
@@ -496,7 +552,8 @@ async function replay(project, plan, directory) {
     state: "ENV_READY", planHash: hashValue(plan), lockHash: hashValue(lock),
     preparationHash: hashValue(actual), checkout: observed.checkout,
     buildRoot: resolveBuildRoot(observed.checkout, plan.buildRoot),
-    comparisonMode: "prebuilt-workspace", nativeBaseline: observed.result,
+    comparisonMode: plan.comparisonMode ?? "prebuilt-workspace",
+    ...(configuredSource ? { preparationVerified: true } : { nativeBaseline: observed.result }),
   });
   appendEnvironment("T1_PREPARED_CHECKOUT", observed.checkout);
 }
@@ -523,6 +580,7 @@ async function main() {
         writeJson(resultFile, {
           schemaVersion: 1, project: project.id, commit: project.commit, operatingSystem,
           state: "ENV_UNVERIFIED", reason: "The qualified environment artifact is missing.",
+          comparisonMode: process.env.T1_ENVIRONMENT_MODE ?? "prebuilt-workspace",
         });
       }
       output("state", "ENV_BLOCKED");
@@ -578,7 +636,9 @@ async function main() {
           "",
           reason,
           "",
-          "Only ENV_READY is eligible for provider scoring. Native compilation is performed before IDE timing.",
+          isConfiguredSource(plan)
+            ? "Configured-source mode checks explicit tools and workspace preparation; no native compilation gate."
+            : "Only ENV_READY is eligible for provider scoring. Native compilation is performed before IDE timing.",
           "",
         ].join("\n"));
       }
@@ -592,6 +652,7 @@ async function main() {
       commit: project.commit,
       operatingSystem,
       state: "ENV_UNVERIFIED",
+      comparisonMode: process.env.T1_ENVIRONMENT_MODE ?? "prebuilt-workspace",
       phase,
       error: error instanceof Error ? error.stack : String(error),
     });

@@ -163,6 +163,44 @@ function assertUnverified(result, reason) {
   assert.equal(result.buildRoot, undefined);
 }
 
+function configuredFixture(t) {
+  const input = fixture(t);
+  input.project.projectSetup.configuredSource = true;
+  input.plan.comparisonMode = "configured-source";
+  input.lock.planHash = hashValue(input.plan);
+  input.lock.qualification = "configured-source";
+  for (const record of [input.qualification, input.replay]) {
+    record.planHash = hashValue(input.plan);
+    record.lockHash = hashValue(input.lock);
+    record.comparisonMode = "configured-source";
+    delete record.nativeBaseline;
+  }
+  input.qualification.qualification = "configured-source";
+  input.replay.preparationVerified = true;
+  for (const file of ["environment-plan.json", "environment-lock.json", "environment-result.json", "environment-replay.json"]) {
+    input.save(file);
+  }
+  return input;
+}
+
+test("configured-source accepts verified tools and preparation without a native baseline", (t) => {
+  const input = configuredFixture(t);
+  const result = input.load();
+  assert.equal(result.qualified, true, JSON.stringify(result.environment));
+  assert.equal(result.environment.comparisonMode, "configured-source");
+  assert.equal(result.replay.nativeBaseline, undefined);
+});
+
+test("configured-source still requires an approved case and successful preparation replay", (t) => {
+  const input = configuredFixture(t);
+  delete input.project.projectSetup.configuredSource;
+  assertUnverified(input.load(), /provenance does not match/);
+  input.project.projectSetup.configuredSource = true;
+  input.replay.preparationVerified = false;
+  input.save("environment-replay.json");
+  assertUnverified(input.load(), /provenance does not match/);
+});
+
 test("missing qualification is blocked before JDK inspection", (t) => {
   const input = fixture(t);
   assertUnverified(input.load({ directory: undefined }), /No qualified environment directory/);

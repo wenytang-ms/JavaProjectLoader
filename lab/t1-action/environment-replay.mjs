@@ -12,6 +12,7 @@ import {
 import { inspectJavaHome } from "./project-environment.mjs";
 import { plannedProject } from "./environment-workflow.mjs";
 import { verifyJavaHomeSelectors } from "./environment-toolchains.mjs";
+import { CONFIGURED_SOURCE_MODE, isConfiguredSource } from "./configured-environment.mjs";
 
 export function copyEnvironmentEvidence(directory, outputDirectory) {
   if (!directory || !fs.existsSync(directory)) return [];
@@ -40,6 +41,7 @@ export function loadProviderEnvironment({
       commit: project.commit,
       operatingSystem,
       state: "ENV_UNVERIFIED",
+      comparisonMode: environment.T1_ENVIRONMENT_MODE ?? "prebuilt-workspace",
       reason,
       ...details,
     },
@@ -65,13 +67,22 @@ export function loadProviderEnvironment({
     if (plan.state !== "PLANNED" || !["native", "java-subproject"].includes(plan.scope)) {
       return unavailable("This plan does not qualify a native Java project or declared Java subproject.");
     }
+    const configuredSource = isConfiguredSource(plan);
+    const preparationVerified = configuredSource
+      ? project.projectSetup?.configuredSource === true &&
+        qualification.qualification === CONFIGURED_SOURCE_MODE &&
+        qualification.comparisonMode === CONFIGURED_SOURCE_MODE &&
+        lock.qualification === CONFIGURED_SOURCE_MODE &&
+        replay.comparisonMode === CONFIGURED_SOURCE_MODE &&
+        replay.preparationVerified === true
+      : replay.nativeBaseline?.successful === true;
     if (lock.harnessCommit !== harnessCommit ||
         qualification.planHash !== hashValue(plan) ||
         qualification.lockHash !== hashValue(lock) ||
         replay.planHash !== hashValue(plan) ||
         replay.lockHash !== hashValue(lock) ||
         replay.state !== "ENV_READY" ||
-        replay.nativeBaseline?.successful !== true) {
+        !preparationVerified) {
       return unavailable("Qualification, native replay, or harness provenance does not match.");
     }
     const checkout = environment.T1_PREPARED_CHECKOUT;
@@ -115,7 +126,7 @@ export function loadProviderEnvironment({
       environment: {
         ...qualification,
         replayVerified: true,
-        comparisonMode: "prebuilt-workspace",
+        comparisonMode: plan.comparisonMode ?? "prebuilt-workspace",
         javaInstallations: actual,
       },
     };

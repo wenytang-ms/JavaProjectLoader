@@ -1305,7 +1305,7 @@ export function environmentResultFields(evidence, judgment) {
     evaluationEligible: judgment.verdict !== "NOT_EVALUATED",
     eligibility: judgment.eligibility ?? "eligible",
     environmentEvidence: evidence.environmentEvidence,
-    comparisonMode: "prebuilt-workspace",
+    comparisonMode: evidence.environmentEvidence.comparisonMode ?? "prebuilt-workspace",
   };
 }
 
@@ -1786,7 +1786,7 @@ async function main() {
       repository: project.repository, commit: project.commit, provider, operatingSystem,
       vscodeVersion, environmentRequired, environmentState: environmentProof.environment.state,
       environmentEvidence: environmentProof.environment,
-      comparisonMode: "prebuilt-workspace", ideStarted: false,
+      comparisonMode: environmentProof.environment.comparisonMode ?? "prebuilt-workspace", ideStarted: false,
     });
     if (!environmentProof.qualified) {
       const result = createEnvironmentBlockedResult({
@@ -2011,6 +2011,7 @@ async function main() {
   let onboarding = null;
   let error = null;
   let finalResult = null;
+  let ideStarted = false;
   const recordProviderLoad = (observation) => {
     activeProviderLoad = observation;
     writeJson(path.join(outputDirectory, "provider-observation.json"), observation);
@@ -2018,6 +2019,7 @@ async function main() {
   };
   try {
     await driver.launch();
+    ideStarted = true;
     if (environmentRequired) {
       const metadataPath = path.join(outputDirectory, "run-metadata.json");
       writeJson(metadataPath, {
@@ -2369,12 +2371,13 @@ async function main() {
     writeJson(path.join(outputDirectory, "run-metadata.json"), {
       schemaVersion: 2,
       ...runVersions,
+      ideStarted,
       ...(environmentRequired ? {
         environmentRequired,
         environmentState: environmentProof.environment.state,
         environmentEvidence: environmentProof.environment,
         evaluationEligible: finalResult?.evaluationEligible ?? false,
-        comparisonMode: "prebuilt-workspace",
+        comparisonMode: environmentProof.environment.comparisonMode ?? "prebuilt-workspace",
         dependencyCacheMode: "prebuilt-isolated",
       } : {}),
       vscodeVersion,

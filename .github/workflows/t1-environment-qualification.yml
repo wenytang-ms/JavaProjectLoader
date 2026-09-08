@@ -5,6 +5,10 @@ on:
       matrix:
         required: true
         type: string
+      environment_mode:
+        required: false
+        default: prebuilt-workspace
+        type: string
 permissions:
   contents: read
 jobs:
@@ -20,6 +24,7 @@ jobs:
       T1_ENVIRONMENT_DIRECTORY: ${{ github.workspace }}/.local-t1/environment/${{ matrix.project.id }}
       T1_OPERATING_SYSTEM: ${{ matrix.os }}
       T1_REQUIRE_ENVIRONMENT_READY: "1"
+      T1_ENVIRONMENT_MODE: ${{ inputs.environment_mode }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -33,7 +38,7 @@ jobs:
         working-directory: lab/t1-action
         run: npm ci
       - id: discover
-        name: Discover requirements from the pinned checkout
+        name: Load environment requirements for the pinned checkout
         continue-on-error: true
         shell: pwsh
         env:
@@ -51,7 +56,7 @@ jobs:
           operating-system: ${{ matrix.os }}
           directory: ${{ env.T1_ENVIRONMENT_DIRECTORY }}
       - id: refine
-        name: Refine using the native project model
+        name: Resolve automatic or explicitly configured requirements
         if: steps.initial.outcome == 'success'
         continue-on-error: true
         shell: pwsh

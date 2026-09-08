@@ -23,8 +23,9 @@ export function setupJavaPackageVersion(home, toolCacheRoot, platform = process.
   if (!home || !toolCacheRoot) throw new Error("The setup-java installation cache was not recorded.");
   const paths = platform === "win32" ? path.win32 : path.posix;
   const parts = paths.relative(toolCacheRoot, home).split(paths.sep);
+  const graalMajor = parts[0] === "Java_GraalVM_jdk" && /^\d+$/.test(parts[1]);
   if (!/^Java_.+_jdk$/.test(parts[0]) || !/^(?:x64|arm64|x86)$/.test(parts[2]) ||
-      !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?$/.test(parts[1])) {
+      (!graalMajor && !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?$/.test(parts[1]))) {
     throw new Error(`Java home is not an identifiable setup-java package: ${home}`);
   }
   // setup-java stores its package SemVer with "+" replaced by "-" in the tool cache.
@@ -38,7 +39,9 @@ export function setupJavaPackageVersion(home, toolCacheRoot, platform = process.
 
 export function lockedSetupJavaVersion(installation) {
   const version = installation?.setupJavaVersion;
-  if (!/^\d+\.\d+\.\d+(?:[+-][0-9A-Za-z.-]+)?$/.test(version ?? "")) {
+  const graalMajor = installation?.distribution === "graalvm" && /^\d+$/.test(version ?? "") &&
+    installation.exactVersion?.match(/^(\d+)/)?.[1] === version;
+  if (!graalMajor && !/^\d+\.\d+\.\d+(?:[+-][0-9A-Za-z.-]+)?$/.test(version ?? "")) {
     throw new Error(`Missing valid setup-java package version for locked ${installation?.role ?? "unknown"} JDK.`);
   }
   return version;

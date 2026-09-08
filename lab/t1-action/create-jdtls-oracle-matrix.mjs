@@ -107,6 +107,12 @@ function main() {
     operatingSystem,
     exclusions,
   });
+  if (process.env.T1_ENVIRONMENT_MODE === "configured-source") {
+    const unreviewed = result.selectedProjects.filter((project) => project.projectSetup?.configuredSource !== true);
+    if (unreviewed.length) {
+      throw new Error(`Cases not reviewed for configured-source: ${unreviewed.map((project) => project.id).join(", ")}`);
+    }
+  }
   if (!outputFile) {
     throw new Error("GitHub output path was not provided.");
   }

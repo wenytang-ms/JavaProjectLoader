@@ -25,3 +25,21 @@ test("Java 8 and Windows compiler toolchains retain installer build numbers", ()
   ), "26.0.0+35-ea");
   assert.throws(() => setupJavaPackageVersion("/elsewhere/jdk", "/cache", "darwin"), /not an identifiable/);
 });
+
+test("GraalVM major-only installer packages retain runtime fingerprint verification", () => {
+  for (const [home, root, platform] of [
+    ["C:\\cache\\Java_GraalVM_jdk\\25\\x64", "C:\\cache", "win32"],
+    ["/cache/Java_GraalVM_jdk/25/arm64/Contents/Home", "/cache", "darwin"],
+  ]) {
+    assert.equal(setupJavaPackageVersion(home, root, platform), "25");
+  }
+  assert.equal(lockedSetupJavaVersion({
+    role: "project", distribution: "graalvm", exactVersion: "25.0.4", setupJavaVersion: "25",
+  }), "25");
+  assert.throws(() => lockedSetupJavaVersion({
+    role: "project", distribution: "graalvm", exactVersion: "24.0.2", setupJavaVersion: "25",
+  }), /Missing valid/);
+  assert.throws(() => setupJavaPackageVersion(
+    "/cache/Java_Temurin-Hotspot_jdk/25/arm64/Contents/Home", "/cache", "darwin",
+  ), /not an identifiable/);
+});

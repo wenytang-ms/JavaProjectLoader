@@ -36,7 +36,7 @@ export function environmentStack(plan) {
 }
 
 export function snapshotPreparedInputs(checkout, project, javaHomes = []) {
-  const skip = new Set([".git", ".gradle", "node_modules", "target", "build", "out", ".idea"]);
+  const skip = new Set([".git", ".gradle", ".develocity", "node_modules", "target", "build", "out", ".idea"]);
   const required = new Set([
     project.relativeFile,
     ...(project.projectSetup?.evidenceFiles ?? []),
@@ -144,6 +144,7 @@ export function environmentResult(project, plan, state, details = {}) {
     commit: project.commit,
     operatingSystem: plan.operatingSystem,
     state,
+    ...(plan.comparisonMode ? { comparisonMode: plan.comparisonMode } : {}),
     scope: plan.scope,
     buildRoot: plan.buildRoot,
     planHash: hashValue(plan),

@@ -1276,7 +1276,9 @@ export function applyEnvironmentPlan(project, plan) {
   setup.buildTool = plan.build.tool;
   const originalVersion = setup.buildToolVersion;
   setup.buildToolVersion = plan.build.version;
-  setup.buildToolVersionSource = "Dynamic environment plan for the pinned checkout; qualification is recorded separately.";
+  setup.buildToolVersionSource = plan.comparisonMode === "configured-source"
+    ? "Reviewed explicit environment for the pinned checkout; no native compilation gate."
+    : "Dynamic environment plan for the pinned checkout; qualification is recorded separately.";
   if (plan.build.tool === "gradle" && !plan.build.wrapperPath) {
     setup.bootstrapGradleVersion = plan.build.version;
   } else {

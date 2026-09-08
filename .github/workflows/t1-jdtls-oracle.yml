@@ -32,6 +32,14 @@ on:
         required: false
         default: ""
         type: string
+      environment_mode:
+        description: "Environment preparation: legacy native prebuild or reviewed explicit source configuration"
+        required: true
+        default: prebuilt-workspace
+        type: choice
+        options:
+          - prebuilt-workspace
+          - configured-source
 
 permissions:
   contents: read
@@ -53,6 +61,8 @@ jobs:
       - id: matrix
         name: Build JDT LS and Oracle comparison matrix
         shell: bash
+        env:
+          T1_ENVIRONMENT_MODE: ${{ inputs.environment_mode || 'prebuilt-workspace' }}
         run: |
           node lab/t1-action/create-jdtls-oracle-matrix.mjs \
             --project-count "${{ inputs.project_count || '10' }}" \
@@ -67,6 +77,7 @@ jobs:
     uses: ./.github/workflows/t1-environment-qualification.yml
     with:
       matrix: ${{ needs.prepare.outputs.qualification_matrix }}
+      environment_mode: ${{ inputs.environment_mode || 'prebuilt-workspace' }}
 
   compare:
     name: Compare / ${{ matrix.project.id }} / ${{ matrix.provider }}
@@ -86,6 +97,7 @@ jobs:
       T1_MIN_TIMEOUT_SECONDS: "1800"
       T1_VSCODE_VERSION: ${{ inputs.vscode_version || '1.136.1' }}
       T1_REQUIRE_ENVIRONMENT_READY: "1"
+      T1_ENVIRONMENT_MODE: ${{ inputs.environment_mode || 'prebuilt-workspace' }}
       T1_ENVIRONMENT_DIRECTORY: ${{ github.workspace }}/.local-t1/environment/${{ matrix.project.id }}
     steps:
       - uses: actions/checkout@v5
@@ -119,7 +131,7 @@ jobs:
           directory: ${{ env.T1_ENVIRONMENT_DIRECTORY }}
           locked: "true"
 
-      - name: Reproduce the neutral native baseline before starting the provider
+      - name: Prepare the locked environment before starting the provider
         if: steps.environment.outcome == 'success' && steps.environment.outputs.state != 'ENV_BLOCKED'
         continue-on-error: true
         shell: pwsh

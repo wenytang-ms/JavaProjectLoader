@@ -182,6 +182,27 @@ test("non-qualified environment remains explicitly non-qualified", () => {
   assert.equal(result.reason, "native model unavailable");
 });
 
+test("generated Develocity workspace IDs are not reproducible build inputs", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "t1-develocity-inputs-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(root, ".mvn", ".develocity"), { recursive: true });
+  fs.writeFileSync(path.join(root, "Probe.java"), "class Probe {}\n");
+  fs.writeFileSync(path.join(root, ".mvn", "extensions.xml"), "<extensions/>\n");
+  const workspaceId = path.join(root, ".mvn", ".develocity", "develocity-workspace-id");
+  fs.writeFileSync(workspaceId, "first-workspace");
+  const first = snapshotPreparedInputs(root, { ...project, relativeFile: "Probe.java" });
+  fs.writeFileSync(workspaceId, "second-workspace");
+  assert.deepEqual(snapshotPreparedInputs(root, { ...project, relativeFile: "Probe.java" }), first);
+  assert.ok(first.some((entry) => entry.path === ".mvn/extensions.xml"));
+});
+
+test("environment failures retain the configured-source experiment identity", () => {
+  const result = environmentResult(project, { ...plan, comparisonMode: "configured-source" },
+    "ENV_UNVERIFIED", { reason: "A required tool is unavailable." });
+  assert.equal(result.comparisonMode, "configured-source");
+  assert.equal(result.state, "ENV_UNVERIFIED");
+});
+
 test("JDT maps project, build, runtime and compiler JDKs separately", () => {
   const configured = {
     ...project,
