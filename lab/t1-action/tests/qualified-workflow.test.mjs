@@ -49,10 +49,10 @@ test("environment installation uses plan or lock outputs for all Java roles", ()
   assert.ok(action.runs.steps.some((step) => step.run?.includes("--role project")));
 });
 
-test("configured-source is opt-in and its mode reaches qualification and both provider jobs", () => {
+test("configured-source is the default and its mode reaches qualification and both provider jobs", () => {
   const comparison = read(".github/workflows/t1-jdtls-oracle.yml");
   const qualification = read(".github/workflows/t1-environment-qualification.yml");
-  assert.equal(comparison.on.workflow_dispatch.inputs.environment_mode.default, "prebuilt-workspace");
+  assert.equal(comparison.on.workflow_dispatch.inputs.environment_mode.default, "configured-source");
   assert.ok(comparison.on.workflow_dispatch.inputs.environment_mode.options.includes("configured-source"));
   assert.match(comparison.jobs.qualify.with.environment_mode, /inputs\.environment_mode/);
   assert.match(comparison.jobs.compare.env.T1_ENVIRONMENT_MODE, /inputs\.environment_mode/);

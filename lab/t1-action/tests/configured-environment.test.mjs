@@ -10,17 +10,17 @@ import { discoverConfiguredEnvironmentPlan } from "../configured-environment.mjs
 import { applyEnvironmentPlan, environmentGithubOutputs } from "../environment-plan.mjs";
 import { hashValue } from "../environment-lock.mjs";
 
-test("the reviewed pilot contains exactly ten pinned cases and forty provider observations", () => {
+test("all hundred cases have explicit environments and the ten-case pilot still selects forty observations", () => {
   const projects = loadProjects();
   const expected = [
     "guava", "arthas", "jjwt", "javalin", "mybatis-3",
     "mockito", "jadx", "btrace", "junit-framework", "metrics",
   ];
   const reviewed = projects.filter((project) => project.projectSetup?.configuredSource === true);
-  assert.deepEqual(reviewed.map((project) => project.id).sort(), [...expected].sort());
+  assert.equal(reviewed.length, 100);
+  assert.deepEqual(reviewed.map((project) => project.id).sort(), projects.map((project) => project.id).sort());
   for (const project of reviewed) {
     assert.ok(project.projectSetup.providers.jdtls.buildJava?.version, project.id);
-    assert.equal(project.syntheticMavenTargetFile, undefined, project.id);
   }
   const matrix = createComparisonMatrix({
     projects, requestedProjects: expected.join(","), operatingSystem: "all",

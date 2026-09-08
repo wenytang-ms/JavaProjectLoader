@@ -33,9 +33,9 @@ on:
         default: ""
         type: string
       environment_mode:
-        description: "Environment preparation: legacy native prebuild or reviewed explicit source configuration"
+        description: "Load per-case JSON environment versions, or opt into the legacy native prebuild"
         required: true
-        default: prebuilt-workspace
+        default: configured-source
         type: choice
         options:
           - prebuilt-workspace
@@ -62,7 +62,7 @@ jobs:
         name: Build JDT LS and Oracle comparison matrix
         shell: bash
         env:
-          T1_ENVIRONMENT_MODE: ${{ inputs.environment_mode || 'prebuilt-workspace' }}
+          T1_ENVIRONMENT_MODE: ${{ inputs.environment_mode || 'configured-source' }}
         run: |
           node lab/t1-action/create-jdtls-oracle-matrix.mjs \
             --project-count "${{ inputs.project_count || '10' }}" \
@@ -77,7 +77,7 @@ jobs:
     uses: ./.github/workflows/t1-environment-qualification.yml
     with:
       matrix: ${{ needs.prepare.outputs.qualification_matrix }}
-      environment_mode: ${{ inputs.environment_mode || 'prebuilt-workspace' }}
+      environment_mode: ${{ inputs.environment_mode || 'configured-source' }}
 
   compare:
     name: Compare / ${{ matrix.project.id }} / ${{ matrix.provider }}
@@ -97,7 +97,7 @@ jobs:
       T1_MIN_TIMEOUT_SECONDS: "1800"
       T1_VSCODE_VERSION: ${{ inputs.vscode_version || '1.136.1' }}
       T1_REQUIRE_ENVIRONMENT_READY: "1"
-      T1_ENVIRONMENT_MODE: ${{ inputs.environment_mode || 'prebuilt-workspace' }}
+      T1_ENVIRONMENT_MODE: ${{ inputs.environment_mode || 'configured-source' }}
       T1_ENVIRONMENT_DIRECTORY: ${{ github.workspace }}/.local-t1/environment/${{ matrix.project.id }}
     steps:
       - uses: actions/checkout@v5
