@@ -266,17 +266,14 @@ export async function preparePlannedWorkspace(project, plan, checkout) {
   const runner = await import("./run-t1-autotest.mjs");
   const configured = plannedProject(project, plan);
   activateBuildJava();
-  runner.applyWindowsJavaToolCopies(process.env.JAVA_HOME, configured.projectSetup?.windowsJavaToolCopies);
+  if (!isConfiguredSource(plan)) {
+    runner.applyWindowsJavaToolCopies(process.env.JAVA_HOME, configured.projectSetup?.windowsJavaToolCopies);
+  }
   const checkoutSetup = runner.cloneProject(configured, checkout);
   const toolchains = runner.configureGradleToolchainEnvironment(configured, process.env);
   runner.writeGradleToolchainProperties(checkout, toolchains);
   if (plan.build.tool === "gradle") {
     const root = resolveBuildRoot(checkout, plan.buildRoot);
-    const wrapper = path.join(root, process.platform === "win32" ? "gradlew.bat" : "gradlew");
-    if (isConfiguredSource(plan)) {
-      if (!fs.existsSync(wrapper)) throw new Error(`Configured Gradle wrapper is missing: ${wrapper}`);
-      if (process.platform !== "win32") fs.chmodSync(wrapper, fs.statSync(wrapper).mode | 0o100);
-    }
     const home = process.env.T1_BUILD_JAVA_HOME.replaceAll("\\", "/");
     fs.appendFileSync(path.join(root, "gradle.properties"), `\norg.gradle.java.home=${home}\n`);
   }

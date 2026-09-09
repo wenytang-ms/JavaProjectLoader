@@ -9,6 +9,7 @@ import {
   createProjectSettings,
   discoverProjectEnvironment,
   provisionProjectEnvironment,
+  validateProjectSetup,
 } from "../project-environment.mjs";
 import {
   applyWindowsGradleExecutableExtensions,
@@ -50,7 +51,7 @@ test("workflow limits each twenty-five-project batch to twenty parallel jobs", (
 
 test("every project exposes complete provider host requirements", () => {
   for (const project of loadProjects()) {
-    for (const provider of ["jdtls", "intellij"]) {
+    for (const provider of Object.keys(project.projectSetup.providers)) {
       const plan = provisionProjectEnvironment(project, {
         provider,
         dryRun: true,
@@ -63,6 +64,56 @@ test("every project exposes complete provider host requirements", () => {
       );
       assert.match(plan.requirements.buildTool, /^(gradle|maven)$/);
     }
+  }
+});
+
+test("JDT LS and Oracle provisioning does not require IntelliJ settings", () => {
+  for (const project of loadProjects()) {
+    delete project.projectSetup.providers.intellij;
+    for (const provider of ["jdtls", "oracle"]) {
+      const plan = provisionProjectEnvironment(project, {
+        provider,
+        dryRun: true,
+      });
+      assert.equal(plan.status, "planned", `${project.id}/${provider}`);
+    }
+  }
+});
+
+test("IntelliJ settings are still validated when supplied", () => {
+  const project = loadProjects()[0];
+  project.projectSetup.providers.intellij.projectJava.version = "";
+  assert.throws(
+    () => validateProjectSetup(project),
+    /intellij\.projectJava\.version must be a non-empty string/,
+  );
+  project.projectSetup.providers.intellij = null;
+  assert.throws(
+    () => validateProjectSetup(project),
+    /providers\.intellij is required/,
+  );
+});
+
+test("build tool and matching descriptors remain required without IntelliJ", () => {
+  const project = loadProjects()[0];
+  delete project.projectSetup.providers.intellij;
+  delete project.projectSetup.buildTool;
+  assert.throws(
+    () => validateProjectSetup(project),
+    /buildTool must be a non-empty string/,
+  );
+  project.projectSetup.buildTool = "ant";
+  assert.throws(
+    () => validateProjectSetup(project),
+    /buildTool must be gradle or maven/,
+  );
+  for (const tool of ["maven", "gradle"]) {
+    project.projectSetup.buildTool = tool;
+    project.projectSetup.buildDescriptors[tool] = [];
+    assert.throws(
+      () => validateProjectSetup(project),
+      /buildDescriptors\.(maven|gradle) must not be empty/,
+    );
   }
 });
 

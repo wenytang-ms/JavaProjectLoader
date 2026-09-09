@@ -7,12 +7,18 @@ import { discoverProjectEnvironment, getProviderSetup } from "./project-environm
 export const CONFIGURED_SOURCE_MODE = "configured-source";
 
 export function discoverConfiguredEnvironmentPlan(project, { checkoutPath, operatingSystem }) {
-  const setup = project.projectSetup;
+  let setup = project.projectSetup;
   if (setup?.configuredSource !== true) {
     throw new Error(`${project.id} has not been reviewed for configured-source execution.`);
   }
   if (project.syntheticMavenTargetFile) {
-    throw new Error("Configured-source execution must open the original project, not a synthetic workspace.");
+    // Legacy fixture descriptors do not describe files in the original checkout.
+    setup = {
+      ...setup,
+      buildDescriptorRoot: "repository",
+      buildDescriptors: { maven: [], gradle: [] },
+    };
+    project = { ...project, projectSetup: setup, comparisonMode: CONFIGURED_SOURCE_MODE };
   }
   if (!["windows-latest", "macos-latest"].includes(operatingSystem)) {
     throw new Error(`Unsupported configured-source OS: ${operatingSystem}`);

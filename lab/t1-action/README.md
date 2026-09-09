@@ -15,8 +15,14 @@ project, build, and server JDK inputs applied to both comparison providers.
 requirement evidence, baseline choices, and caveats. Case definitions and
 workspace selection are unchanged.
 
+Maven/Gradle selection remains required, and declared real descriptors are checked.
+Legacy synthetic cases use their original source paths in configured-source mode;
+no generated Maven descriptor is required or created for those cases.
+`providers.intellij` is optional for JDT LS / Oracle comparisons; when supplied,
+its settings are still validated.
+
 Server JDK choices are retained, including BTrace Java 24. This configuration
-update does not change provider JVM arguments, validation rules, import logic,
+update does not change provider JVM arguments, import logic,
 or semantic probes. Environment preparation is not a promise of provider success.
 
 Configured-source uses explicit project, build, server and compiler-toolchain
@@ -26,6 +32,9 @@ It does not run automatic Maven/Gradle model discovery, native compilation, or
 the identical-JDK annotation-processor proof. Existing checkout preparation and
 provider isolation are retained. Failed preparation prevents IDE startup and
 remains `NOT_EVALUATED`; provider and diagnostic failures are not suppressed.
+Configured-source does not require a root `gradlew` or `gradlew.bat` launcher and
+does not copy `native-image` or other tools inside the JDK. Missing launchers and
+provider-specific tool layout requirements are left to the actual import.
 
 BTrace retains its pre-existing Windows `common.gradle` adaptation for
 `javac.exe` and `javadoc.exe`. This does not change its configured JDK versions
@@ -39,13 +48,14 @@ To select all 100 cases, dispatch `t1-jdtls-oracle.yml` with:
 - `operating_system`: `windows-latest` or `macos-latest`
 - `vscode_version`: `1.136.1`
 
-The configuration change does not dispatch the workflow. Existing scope checks
-still apply: `nativescript`, `leetcode`, `jdk`, `playframework`,
+The configuration change does not dispatch the workflow. In configured-source,
+`nativescript`, `leetcode`, `jdk`, `playframework`,
 `the-complete-faang-preparation`, `semgrep`, `curlconverter`, and
-`aws-doc-sdk-examples` retain their old synthetic Maven cases, which
-`configured-source` rejects. Their listed Maven/JDK values are fixture baselines,
-not invented native upstream requirements. No case or eligibility rule was
-rewritten to hide this limitation.
+`aws-doc-sdk-examples` open their original checkout and original probe file.
+Their historical synthetic mappings remain available to legacy execution only.
+Their listed Maven/JDK values remain the existing baselines, not claims that the
+upstream repositories are native Maven projects. Case identities, revisions,
+probe symbols and the three observations are unchanged.
 
 For the original ten-case pilot, use:
 

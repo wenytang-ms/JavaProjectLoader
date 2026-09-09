@@ -1270,6 +1270,10 @@ export function applyEnvironmentPlan(project, plan) {
     throw new Error("Environment plan does not match this project and commit.");
   }
   const result = structuredClone(project);
+  if (plan.comparisonMode === "configured-source") {
+    result.comparisonMode = plan.comparisonMode;
+    delete result.syntheticMavenTargetFile;
+  }
   result.javaVersion = plan.java.project.version;
   result.workspaceRoot = plan.buildRoot;
   const setup = result.projectSetup ??= {};

@@ -25,6 +25,11 @@ function requireRelativePath(value, label) {
   }
 }
 
+function isDescriptorFreeConfiguredSource(project) {
+  return project.comparisonMode === "configured-source" &&
+    Object.values(project.projectSetup.buildDescriptors).every((files) => files.length === 0);
+}
+
 export function validateProjectSetup(project) {
   const setup = project.projectSetup;
   if (!setup) {
@@ -82,7 +87,8 @@ export function validateProjectSetup(project) {
       );
     }
   }
-  if ((setup.buildDescriptors[setup.buildTool] ?? []).length === 0) {
+  if ((setup.buildDescriptors[setup.buildTool] ?? []).length === 0 &&
+      !isDescriptorFreeConfiguredSource(project)) {
     throw new Error(
       `${project.id}.projectSetup.buildDescriptors.${setup.buildTool} must not be empty.`,
     );
@@ -93,6 +99,9 @@ export function validateProjectSetup(project) {
   }
   for (const provider of ["jdtls", "intellij"]) {
     const providerSetup = setup.providers[provider];
+    if (provider === "intellij" && providerSetup === undefined) {
+      continue;
+    }
     if (!providerSetup) {
       throw new Error(`${project.id}.projectSetup.providers.${provider} is required.`);
     }
@@ -466,7 +475,8 @@ export function discoverProjectEnvironment(
     .filter(([, files]) => files.length > 0)
     .map(([tool]) => tool)
     .sort();
-  if (!availableBuildTools.includes(setup.buildTool)) {
+  if (!availableBuildTools.includes(setup.buildTool) &&
+      !isDescriptorFreeConfiguredSource(project)) {
     throw new Error(
       `Preferred build tool ${setup.buildTool} has no descriptor in the pinned checkout.`,
     );

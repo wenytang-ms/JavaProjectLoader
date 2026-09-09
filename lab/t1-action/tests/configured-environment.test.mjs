@@ -4,11 +4,15 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { pathToFileURL } from "node:url";
 import { loadProjects } from "../create-matrix.mjs";
 import { createComparisonMatrix } from "../create-jdtls-oracle-matrix.mjs";
 import { discoverConfiguredEnvironmentPlan } from "../configured-environment.mjs";
 import { applyEnvironmentPlan, environmentGithubOutputs } from "../environment-plan.mjs";
 import { hashValue } from "../environment-lock.mjs";
+import { plannedProject, preparePlannedWorkspace } from "../environment-workflow.mjs";
+import { discoverProjectEnvironment, provisionProjectEnvironment } from "../project-environment.mjs";
+import { resolvePreparedWorkspace } from "../prepared-workspace-driver.mjs";
 
 test("all hundred cases have explicit environments and the ten-case pilot still selects forty observations", () => {
   const projects = loadProjects();
@@ -41,6 +45,41 @@ test("BTrace retains its existing Windows adaptation without changing JVM roles"
   assert.equal(provider.projectJava.version, "24");
   assert.equal(provider.buildJava.version, "21");
   assert.equal(provider.runtimeJava.version, "24");
+});
+
+test("all eight legacy synthetic cases use original source without generating a Maven project", (t) => {
+  const projects = loadProjects().filter((project) => project.syntheticMavenTargetFile);
+  assert.equal(projects.length, 8);
+  for (const project of projects) {
+    const original = JSON.stringify(project);
+    const checkoutPath = fs.mkdtempSync(path.join(os.tmpdir(), "t1-original-source-"));
+    t.after(() => fs.rmSync(checkoutPath, { recursive: true, force: true }));
+    const source = path.join(checkoutPath, project.relativeFile);
+    fs.mkdirSync(path.dirname(source), { recursive: true });
+    fs.writeFileSync(source, "class Probe {}\n");
+    for (const operatingSystem of ["windows-latest", "macos-latest"]) {
+      const plan = discoverConfiguredEnvironmentPlan(project, { checkoutPath, operatingSystem });
+      assert.equal(plan.state, "PLANNED", project.id);
+      assert.equal(plan.build.tool, project.projectSetup.buildTool);
+      assert.equal(plan.build.version, project.projectSetup.buildToolVersion);
+      assert.equal(plan.inputHashes.some((input) => input.path === "pom.xml"), false);
+      const configured = plannedProject(project, plan);
+      assert.equal(configured.syntheticMavenTargetFile, undefined);
+      assert.equal(configured.relativeFile, project.relativeFile);
+      const resolved = resolvePreparedWorkspace(configured, checkoutPath);
+      assert.equal(resolved.workspacePath, checkoutPath);
+      assert.equal(resolved.runtimeRelativeFile, project.relativeFile);
+      for (const provider of ["jdtls", "oracle"]) {
+        assert.equal(provisionProjectEnvironment(configured, { provider, dryRun: true }).status, "planned");
+        const discovery = discoverProjectEnvironment(configured, checkoutPath, provider);
+        assert.deepEqual(discovery.detection.availableBuildTools, []);
+      }
+    }
+    assert.equal(JSON.stringify(project), original);
+    assert.equal(fs.readFileSync(source, "utf8"), "class Probe {}\n");
+    assert.equal(fs.existsSync(path.join(checkoutPath, "pom.xml")), false);
+    assert.equal(fs.existsSync(path.join(checkoutPath, project.syntheticMavenTargetFile)), false);
+  }
 });
 
 function fixture(t, buildTool = "maven") {
@@ -147,6 +186,57 @@ test("configured preparation requires the real probe, descriptors and pinned Mav
   fs.unlinkSync(path.join(input.checkoutPath, "Probe.java"));
   assert.throws(() => input.plan(), /ENOENT/);
 });
+
+for (const nested of [false, true]) {
+  test(`source preparation proceeds without wrapper launchers or native-image copies (${nested ? "nested" : "root"} wrapper)`, async (t) => {
+    const input = fixture(t, "gradle");
+    if (nested) {
+      const previous = input.project.projectSetup.gradleWrapper.path;
+      input.project.projectSetup.gradleWrapper.path = `nested/${previous}`;
+      const target = path.join(input.checkoutPath, input.project.projectSetup.gradleWrapper.path);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.renameSync(path.join(input.checkoutPath, previous), target);
+    }
+    const git = (...args) => {
+      const result = spawnSync("git", ["-C", input.checkoutPath, ...args], { encoding: "utf8" });
+      assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+      return result.stdout.trim();
+    };
+    git("init", "--quiet");
+    git("add", ".");
+    git("-c", "user.name=T1 fixture", "-c", "user.email=t1@example.invalid",
+      "commit", "--quiet", "-m", "fixture");
+    input.project.repository = pathToFileURL(input.checkoutPath).href;
+    input.project.commit = git("rev-parse", "HEAD");
+    input.project.projectSetup.windowsJavaToolCopies = [
+      { source: "missing-native-image.exe", target: "bin/native-image.exe" },
+    ];
+    const plan = input.plan();
+    const output = fs.mkdtempSync(path.join(os.tmpdir(), "t1-original-prepared-"));
+    t.after(() => fs.rmSync(output, { recursive: true, force: true }));
+    const pathKey = Object.keys(process.env).find((key) => key.toLowerCase() === "path") ?? "PATH";
+    const keys = [pathKey, "JAVA_HOME", "T1_PROJECT_JAVA_HOME", "T1_BUILD_JAVA_HOME",
+      "T1_TOOLCHAIN_JAVA_HOMES", "GRADLE_OPTS"];
+    const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+    t.after(() => {
+      for (const [key, value] of Object.entries(previous)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    });
+    process.env.T1_PROJECT_JAVA_HOME = path.join(output, "jdk");
+    process.env.T1_BUILD_JAVA_HOME = process.env.T1_PROJECT_JAVA_HOME;
+    process.env.T1_TOOLCHAIN_JAVA_HOMES = "";
+    process.env.GRADLE_OPTS = "";
+    const checkout = path.join(output, "checkout");
+    await preparePlannedWorkspace(input.project, plan, checkout);
+    assert.equal(fs.readFileSync(path.join(checkout, "Probe.java"), "utf8").replaceAll("\r\n", "\n"), "class Probe {}\n");
+    assert.equal(fs.existsSync(path.join(checkout, "gradlew")), false);
+    assert.equal(fs.existsSync(path.join(checkout, "gradlew.bat")), false);
+    assert.equal(fs.existsSync(path.join(output, "jdk", "bin", "native-image.exe")), false);
+    assert.equal(discoverProjectEnvironment(plannedProject(input.project, plan), checkout, "jdtls").status, "configured");
+  });
+}
 
 test("configured refinement advances without Java installation or a native model command", (t) => {
   const input = fixture(t);
